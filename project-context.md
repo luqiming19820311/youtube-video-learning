@@ -12,7 +12,7 @@
 - 运行环境：Chrome 116+，标准 `https://www.youtube.com/watch?...` 视频页
 - 当前发布版本：`1.1.6`
 - 目标发布包：`dist/youtube-digest-v1.1.6.zip`
-- 用户指定的业务备注：`V2.1.0版本`
+- 用户指定的业务备注：`V1.1.6版本`
 - 用户指定的本次变更备注：`新增：屏幕字幕显示`
 
 ## 产品关键决策
@@ -115,17 +115,17 @@ options.html + options.js + options.css
 
 - 用户目标仓库：`luqiming19820311/youtube-video-learning`
 - 目标仓库状态：Private
-- 期望业务备注：`V2.1.0版本`
+- 期望业务备注：`V1.1.6版本`
 - 期望发布包备注：`youtube-digest-v1.1.6`；`新增：屏幕字幕显示`
 - 当前工作区没有 `.git`，因此不存在可识别的当前分支、远程 `origin` 或本地提交历史。
 - 本机 `gh` 已安装，但账号 `luqiming19820311` 的登录令牌已失效，需要重新 `gh auth login -h github.com`。
 - GitHub 连接器访问目标仓库返回 404，可能是仓库尚未创建，也可能是当前连接器账号没有访问权限。
-- 重新进入交付会话时，先确认仓库已创建为 Private、GitHub 账号已授权，然后初始化/绑定 Git 远程，提交 `V2.1.0` 发布备注并推送当前版本。
+- 重新进入交付会话时，先确认仓库已创建为 Private、GitHub 账号已授权，然后初始化/绑定 Git 远程，提交 `V1.1.6` 发布备注并推送当前版本。
 
 ## 下一次会话建议入口
 
 1. 先检查 `git status --short --branch`、`git remote -v` 和 `gh auth status`。
 2. 确认 `luqiming19820311/youtube-video-learning` 可访问且为 Private。
 3. 运行 `npm test && npm run check && npm run package`。
-4. 检查 `dist/youtube-digest-v1.1.6.zip`，提交消息建议：`release: 发布 V2.1.0，新增屏幕字幕显示`。
-5. 推送后在 GitHub Release/PR 中记录：`V2.1.0版本`、包名 `youtube-digest-v1.1.6`、备注 `新增：屏幕字幕显示`。
+4. 检查 `dist/youtube-digest-v1.1.6.zip`，提交消息建议：`release: 发布 V1.1.6，新增屏幕字幕显示`。
+5. 推送后在 GitHub Release/PR 中记录：`V1.1.6版本`、包名 `youtube-digest-v1.1.6`、备注 `新增：屏幕字幕显示`。
