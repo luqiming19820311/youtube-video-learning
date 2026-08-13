@@ -141,12 +141,14 @@ options.html + options.js + options.css
 ## 当前 GitHub 交付状态
 
 - 用户目标仓库：`luqiming19820311/youtube-video-learning`
-- 目标仓库状态：Private
+- 目标仓库状态：Private，已于 2026-08-13 通过 GitHub API 确认。
 - 期望业务备注：`V1.7.0版本`
 - 期望发布包备注：`youtube-digest-v1.7.0`；`新增：Transcript开关，不同大模型选择。`
 - 当前工作区已初始化 Git，默认分支为 `main`，远程 `origin` 指向目标仓库。
 - 目标仓库已创建为 Private：`luqiming19820311/youtube-video-learning`。
-- 发布分支为 `feat/transcript-master-toggle`；新会话应先检查远程分支、`v1.7.0` 标签和 GitHub Release 状态。
+- 发布分支 `feat/transcript-master-toggle` 已推送；功能发布提交为 `1f1e3b9`。
+- `v1.7.0` 标签和 `V1.7.0版本` GitHub Release 已创建，安装包已作为 Release 附件上传。
+- Release 地址：`https://github.com/luqiming19820311/youtube-video-learning/releases/tag/v1.7.0`
 - 若后续 GitHub CLI 授权过期，使用 `gh auth login -h github.com` 重新授权后再推送。
 
 ## 下一次会话建议入口
