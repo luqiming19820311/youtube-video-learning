@@ -61,3 +61,35 @@ test("Supadata receives a canonical YouTube URL", () => {
     /Invalid YouTube video ID/,
   );
 });
+
+test("normalizes multi-provider settings and migrates the legacy DeepSeek fields", () => {
+  const migrated = settings.migrateLegacyCustom({
+    aiApiKey: " old-key ",
+    aiModel: "deepseek-v4-pro",
+    supadataApiKey: " supadata-key ",
+  });
+
+  assert.equal(migrated.settings.activeProvider, "deepseek");
+  assert.equal(migrated.settings.activeModel, "deepseek-v4-pro");
+  assert.equal(migrated.settings.providers.deepseek.apiKey, "old-key");
+  assert.equal(migrated.settings.supadataApiKey, "supadata-key");
+
+  const normalized = settings.normalize({
+    activeProvider: "zhipu",
+    activeModel: "glm-4.5",
+    providers: {
+      zhipu: {
+        apiKey: " zhipu-key ",
+        baseUrl: "https://open.bigmodel.cn/api/paas/v4/",
+        models: [{ id: "glm-4.5", name: "GLM-4.5" }],
+        activeModel: "glm-4.5",
+      },
+    },
+    supadataApiKey: "supadata",
+  });
+
+  assert.equal(normalized.activeProvider, "zhipu");
+  assert.equal(normalized.activeModel, "glm-4.5");
+  assert.equal(normalized.providers.zhipu.apiKey, "zhipu-key");
+  assert.equal(normalized.providers.deepseek.apiKey, "");
+});

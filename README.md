@@ -51,7 +51,7 @@ Because this is an unpacked extension, it does not update automatically. After d
 YouTube Digest needs two keys under your own provider accounts:
 
 1. A **Supadata API key** to retrieve YouTube transcripts.
-2. A **DeepSeek API key** for overviews, explanations, translation, and automatic note polishing.
+2. An API key for the AI provider you choose, used for overviews, explanations, translation, and automatic note polishing.
 
 ### Get a Supadata API key
 
@@ -63,27 +63,27 @@ YouTube Digest needs two keys under your own provider accounts:
 
 See the [official Supadata documentation](https://docs.supadata.ai/) if the dashboard flow changes.
 
-### Get a DeepSeek API key
+### Get an AI provider API key
 
 1. Open the official [DeepSeek API Keys page](https://platform.deepseek.com/api_keys).
 2. Sign in or create a DeepSeek Platform account when prompted.
 3. Choose **Create new API key**, give it a recognizable name such as `YouTube Digest`, and create it.
 4. Copy the key immediately. The full key may only be shown once.
-5. Paste it into **DeepSeek API key** in YouTube Digest Settings.
+5. Paste it into the selected provider's **API key** field in YouTube Digest Settings.
 6. If DeepSeek reports insufficient balance, add credit in your DeepSeek Platform account and try again.
 
 See the [official DeepSeek API documentation](https://api-docs.deepseek.com/) for current account and API details.
 
 Open **Settings** from the side panel. You can also open the YouTube Digest **Options** page from its card at `chrome://extensions` or by right-clicking its toolbar icon. Paste keys only into these Settings fields. Never paste a key into an AI chat, repository file, screenshot, or public message.
 
-The published version supports DeepSeek V4 Flash as its only AI provider:
+The published version supports multiple AI providers, including DeepSeek, Groq, Qwen, Volcengine, Gemini, Zhipu GLM, Xiaomi MiMo, local OpenAI-compatible services, and custom OpenAI-compatible endpoints:
 
 ```text
-Base URL: https://api.deepseek.com
-Model: deepseek-v4-flash
+Default provider: DeepSeek
+Default model: deepseek-v4-flash
 ```
 
-YouTube Digest sends every DeepSeek request in non-thinking mode for responsive, predictable interactions. The endpoint and model are fixed in Settings, so the only AI credential you enter is your DeepSeek API key. To use another provider or model, copy the safe customization prompt in Settings and give it to a coding agent for your local copy. Never add an API key to that prompt or chat.
+YouTube Digest lets you select one provider and model globally for overviews, explanations, translation, notes, and player captions. Each provider has its own endpoint, API key, model list, and model refresh button. Online model lists are preferred and built-in fallback models remain available when a provider is offline. Never add an API key to prompts, source code, or chat.
 
 Keys and settings are stored in Chrome's local extension storage on your device. Release builds do not include or use `config.js`.
 
@@ -104,7 +104,7 @@ Keys and settings are stored in Chrome's local extension storage on your device.
 - Original, Simplified Chinese, and aligned bilingual transcript views.
 - AI overviews, selected-text explanations, translation, and automatic note polishing.
 - Local notes and a local cache for recent transcript and digest results.
-- DeepSeek V4 Flash for all published AI features. Other providers require a local code adaptation and are not supported by this published version.
+- The selected provider and model for all published AI features. DeepSeek V4 Flash remains the default.
 
 Shorts, live streams, private or access-restricted videos, and videos without an available native transcript may not work. Firefox, Safari, mobile browsers, and other Chromium browsers are not currently tested or supported.
 
@@ -189,7 +189,7 @@ There is no YouTube Digest account system, advertising, analytics, or telemetry.
 ### YouTube Digest asks for setup
 
 - Open **Settings** and save both a Supadata key and a DeepSeek key.
-- This published version uses the fixed DeepSeek V4 Flash endpoint and model. There are no Base URL or Model fields to configure.
+- Settings provides a Base URL, API key, model selector, and model-list refresh action for each supported provider. Cloud providers use documented defaults, while local and custom providers accept an OpenAI-compatible endpoint.
 - If Settings says a legacy custom provider was removed, enter a DeepSeek key. The old AI key was cleared so it could not be reused with the wrong service.
 
 ### No transcript is found

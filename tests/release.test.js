@@ -16,8 +16,22 @@ test("manifest uses minimized install-time permissions", () => {
   assert.equal(manifest.options_ui.page, "options.html");
   assert.ok(!manifest.permissions.includes("activeTab"));
   assert.ok(manifest.host_permissions.includes("https://api.deepseek.com/*"));
-  assert.equal(Object.hasOwn(manifest, "optional_host_permissions"), false);
-  assert.equal(manifest.version, "1.1.6");
+  assert.ok(manifest.optional_host_permissions.includes("https://api.groq.com/*"));
+  assert.equal(manifest.version, "1.7.0");
+});
+
+test("Transcript toggle controller is included in the release package", () => {
+  const releaseCheck = read("scripts/check-release.sh");
+  const sidepanel = read("sidepanel.html");
+
+  assert.equal(
+    (releaseCheck.match(/"transcript-toggle\.js"/g) || []).length,
+    2,
+  );
+  assert.match(
+    sidepanel,
+    /<script src="transcript-toggle\.js"><\/script>[\s\S]*<script src="sidepanel\.js"><\/script>/,
+  );
 });
 
 test("release copy documents current scope without em dashes", () => {
@@ -123,8 +137,10 @@ test("release copy documents current scope without em dashes", () => {
   const optionsScript = read("options.js");
   assert.match(optionsPage, /dash\.supadata\.ai\/auth\/sign-up/i);
   assert.match(optionsPage, /platform\.deepseek\.com\/api_keys/i);
-  assert.doesNotMatch(optionsPage, /<select\b/i);
-  assert.doesNotMatch(optionsPage, /id="(?:provider|aiBaseUrl|aiModel)"/);
+  assert.match(optionsPage, /<select\b/i);
+  assert.match(optionsPage, /id="providerList"/);
+  assert.match(optionsPage, /id="aiBaseUrl"/);
+  assert.match(optionsPage, /id="aiModel"/);
   const detailsTag = optionsPage.match(
     /<details\b[^>]*class="card customization-card"[^>]*>/,
   );
@@ -175,12 +191,10 @@ test("release copy documents current scope without em dashes", () => {
     read("PRIVACY.md"),
     read("SECURITY.md"),
   ].join("\n");
-  assert.doesNotMatch(publishedDocs, /custom OpenAI-compatible/i);
-  assert.doesNotMatch(publishedDocs, /optional custom-origin/i);
-  assert.doesNotMatch(publishedDocs, /chosen AI provider/i);
-  assert.doesNotMatch(publishedDocs, /configure a different OpenAI-compatible/i);
-  assert.match(readme, /published version supports DeepSeek V4 Flash as its only AI provider/i);
-  assert.match(chineseReadme, /发布版本只支持 DeepSeek V4 Flash/);
+  assert.match(publishedDocs, /custom OpenAI-compatible/i);
+  assert.match(publishedDocs, /selected provider/i);
+  assert.match(readme, /published version supports multiple AI providers/i);
+  assert.match(chineseReadme, /发布版本支持多个 AI 服务商/);
 });
 
 test("notes filters preserve selected contrast and expose pressed state", () => {

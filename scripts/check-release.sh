@@ -26,8 +26,10 @@ fail() {
 # validated separately, so a referenced-but-missing file still fails.
 public_allowlist=(
   "manifest.json"
+  "ai-providers.js"
   "background.js"
   "settings.js"
+  "transcript-toggle.js"
   "player-captions.js"
   "content.js"
   "sidepanel.html"
@@ -52,8 +54,10 @@ public_allowlist=(
 
 required_public_files=(
   "manifest.json"
+  "ai-providers.js"
   "background.js"
   "settings.js"
+  "transcript-toggle.js"
   "player-captions.js"
   "content.js"
   "sidepanel.html"

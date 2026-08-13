@@ -28,6 +28,7 @@ let currentVideoDuration = 0;
 let isAnalysisLoading = false; // Track if analysis is in progress
 let youtubeTabId = null; // Store the YouTube tab ID for reliable messaging
 let errorAction = null;
+let transcriptTabsController = null;
 
 // --- Translation state ---
 // The public transcript control intentionally supports only the original
@@ -230,12 +231,27 @@ function groupTranscriptEntries(entries, limits = TRANSCRIPT_SEGMENT_LIMITS) {
 // ============================================================
 
 document.addEventListener("DOMContentLoaded", async () => {
+  transcriptTabsController = YTD_TRANSCRIPT_TOGGLE.createController({
+    document,
+    storage: chrome.storage.local,
+  });
   setupEventListeners();
+  await transcriptTabsController.initialize();
   await evictOldCacheEntries(20);
 
+  if (transcriptTabsController.isEnabled()) {
+    await activateTranscriptFeature();
+  } else {
+    deactivateTranscriptFeature();
+  }
+});
+
+async function activateTranscriptFeature() {
+  if (!transcriptTabsController?.isEnabled()) return;
   const configStatus = await chrome.runtime.sendMessage({
     action: "checkConfig",
   });
+  if (!transcriptTabsController.isEnabled()) return;
 
   if (!configStatus.hasSupadataKey || !configStatus.hasAiKey) {
     showConfigError(configStatus);
@@ -243,7 +259,20 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   await checkCurrentTab();
-});
+}
+
+function deactivateTranscriptFeature() {
+  clearTimeout(navigationRefreshTimer);
+  translationGeneration += 1;
+  activeTranslationQueue = null;
+  setTranslatingSpinner(false);
+  if (transcriptScrollObserver) transcriptScrollObserver.disconnect();
+  transcriptScrollObserver = null;
+  stopPlaybackTracking();
+  document.getElementById("explainTooltip")?.remove();
+  clearPlayerCaptionOverlay();
+  showState("disabled");
+}
 
 // Listen for messages from the Digest button on YouTube page
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -252,12 +281,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     // seen this video before (no API calls); fetched fresh otherwise.
     // (This used to force-clear the cache on every click, which silently
     // burned a transcript credit + analysis tokens per click.)
-    checkCurrentTab();
-    sendResponse({ success: true });
+    if (transcriptTabsController?.isEnabled()) checkCurrentTab();
+    sendResponse({ success: transcriptTabsController?.isEnabled() === true });
   }
   if (message.action === "transcriptProgress") {
     // Background is telling us the transcript fetch status changed
-    updateLoading(message.title, message.subtitle);
+    if (transcriptTabsController?.isEnabled()) {
+      updateLoading(message.title, message.subtitle);
+    }
     sendResponse({ success: true });
   }
   if (message.action === "noteSaved") {
@@ -296,6 +327,7 @@ chrome.windows.getCurrent().then((w) => {
 });
 
 function scheduleDigestRefresh() {
+  if (!transcriptTabsController?.isEnabled()) return;
   // Small delay lets YouTube finish rendering the new video's title and
   // description before we read them. Also collapses rapid-fire URL events
   // into a single refresh.
@@ -320,6 +352,7 @@ function handleFrontTabUrl(url) {
     window.close();
     return;
   }
+  if (!transcriptTabsController?.isEnabled()) return;
 
   const newVideoId = extractVideoId(url);
   // Refresh when the video changed, or when we're not currently showing
@@ -369,6 +402,16 @@ function setupEventListeners() {
 
   document.getElementById("settingsBtn")?.addEventListener("click", () => {
     chrome.runtime.sendMessage({ action: "openOptions" });
+  });
+
+  document.getElementById("transcriptToggle")?.addEventListener("click", () => {
+    const persistence = transcriptTabsController?.toggle();
+    if (transcriptTabsController?.isEnabled()) {
+      void activateTranscriptFeature();
+    } else {
+      deactivateTranscriptFeature();
+    }
+    void persistence;
   });
 
   // Transcript actions
@@ -424,6 +467,8 @@ function setNotesFilter(showAll) {
 // ============================================================
 
 async function checkCurrentTab() {
+  if (!transcriptTabsController?.isEnabled()) return;
+  const requestToken = transcriptTabsController.createRequestToken();
   try {
     // Try multiple strategies to find the YouTube tab
     let tab = null;
@@ -433,6 +478,7 @@ async function checkCurrentTab() {
       active: true,
       lastFocusedWindow: true,
     });
+    if (!transcriptTabsController.isRequestCurrent(requestToken)) return;
     if (tabs[0]?.url?.includes("youtube.com")) {
       tab = tabs[0];
     }
@@ -443,12 +489,14 @@ async function checkCurrentTab() {
         url: "https://www.youtube.com/*",
         active: true,
       });
+      if (!transcriptTabsController.isRequestCurrent(requestToken)) return;
       if (tabs[0]) tab = tabs[0];
     }
 
     // Strategy 3: Any YouTube tab (last resort)
     if (!tab) {
       tabs = await chrome.tabs.query({ url: "https://www.youtube.com/*" });
+      if (!transcriptTabsController.isRequestCurrent(requestToken)) return;
       if (tabs[0]) tab = tabs[0];
     }
 
@@ -473,6 +521,7 @@ async function checkCurrentTab() {
           action: "relayToContent",
           payload: { action: "getVideoInfo" },
         });
+        if (!transcriptTabsController.isRequestCurrent(requestToken)) return;
         debugLog("[YouTube Digest Panel] getVideoInfo result:", result);
         if (result.success && result.response) {
           currentVideoTitle = result.response.title || "";
@@ -528,6 +577,8 @@ function extractVideoId(url) {
 // ============================================================
 
 async function startDigest(videoId, videoUrl) {
+  const requestToken = transcriptTabsController?.createRequestToken();
+  if (!requestToken) return;
   // Check if we already have this video loaded in memory
   if (videoId === currentVideoId && currentAnalysis) {
     showState("results");
@@ -545,6 +596,7 @@ async function startDigest(videoId, videoUrl) {
 
   // Check cache for this video
   const cached = await loadFromCache(videoId);
+  if (!transcriptTabsController.isRequestCurrent(requestToken)) return;
   if (cached) {
     debugLog("Loading from cache:", videoId);
     currentVideoId = videoId;
@@ -573,6 +625,7 @@ async function startDigest(videoId, videoUrl) {
     // Always render transcript first
     renderTranscript();
     await syncPlayerCaptionOverlay();
+    if (!transcriptTabsController.isRequestCurrent(requestToken)) return;
 
     // Render analysis if we have it cached
     if (currentAnalysis) {
@@ -615,6 +668,7 @@ async function startDigest(videoId, videoUrl) {
     action: "fetchTranscript",
     videoId: videoId,
   });
+  if (!transcriptTabsController.isRequestCurrent(requestToken)) return;
 
   if (!transcriptResult.success) {
     if (transcriptResult.error === "NO_SUPADATA_KEY") {
@@ -639,6 +693,7 @@ async function startDigest(videoId, videoUrl) {
   // Render transcript immediately (no LLM needed)
   renderTranscript();
   await syncPlayerCaptionOverlay();
+  if (!transcriptTabsController.isRequestCurrent(requestToken)) return;
   showState("results");
   document.getElementById("tabsNav").style.display = "flex";
 
@@ -907,6 +962,11 @@ function exportTranscript() {
 // ============================================================
 
 function showState(state) {
+  if (state !== "disabled" && !transcriptTabsController?.isEnabled()) {
+    state = "disabled";
+  }
+  document.getElementById("transcriptDisabledState").style.display =
+    state === "disabled" ? "flex" : "none";
   document.getElementById("welcomeState").style.display =
     state === "welcome" ? "flex" : "none";
   document.getElementById("loadingState").style.display =
@@ -923,7 +983,7 @@ function showState(state) {
   // remember to re-show it after showState("results"), and one path forgot —
   // which is why the tabs could vanish when re-opening an already-analyzed video.
   document.getElementById("tabsNav").style.display =
-    state === "results" ? "flex" : "none";
+    state === "results" || state === "disabled" ? "flex" : "none";
 
   if (state !== "results") {
     stopPlaybackTracking();
@@ -961,6 +1021,7 @@ function showConfigError(configStatus) {
 // ============================================================
 
 function switchTab(tabName) {
+  if (!transcriptTabsController?.isEnabled()) return;
   document.querySelectorAll(".tab").forEach((tab) => {
     tab.classList.toggle("active", tab.dataset.tab === tabName);
   });
@@ -1782,7 +1843,12 @@ function buildPlayerCaptionState(
 }
 
 async function syncPlayerCaptionOverlay() {
-  if (!youtubeTabId || !currentVideoId || !currentTranscript) return;
+  if (
+    !transcriptTabsController?.isEnabled() ||
+    !youtubeTabId ||
+    !currentVideoId ||
+    !currentTranscript
+  ) return;
   try {
     await chrome.tabs.sendMessage(
       youtubeTabId,
@@ -1815,6 +1881,7 @@ function setTranscriptModeButtons(mode) {
 }
 
 async function handleTranscriptModeChange(mode) {
+  if (!transcriptTabsController?.isEnabled()) return;
   if (!["original", "zh", "bilingual"].includes(mode)) return;
   if (mode === currentTranscriptMode) return;
 
@@ -2050,6 +2117,7 @@ function retryTranslationSegment(index, generation) {
  * remaining rows. Batches are sequential so the provider is never flooded.
  */
 async function translateTranscript() {
+  if (!transcriptTabsController?.isEnabled()) return;
   const segments = getActiveTranscriptSegments();
   if (!segments.length || currentTranscriptMode === "original") return;
 

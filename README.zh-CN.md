@@ -69,21 +69,21 @@ YouTube Digest 需要你在自己的服务账号中准备两个 Key：
 2. 按照提示登录，或创建 DeepSeek 开放平台账号。
 3. 点击 **Create new API key**，填写容易识别的名称，例如 `YouTube Digest`，然后创建 Key。
 4. 立即复制 Key。完整 Key 可能只会显示一次。
-5. 把 Key 粘贴到 YouTube Digest 设置中的 **DeepSeek API key**。
+5. 把 Key 粘贴到 YouTube Digest 设置中对应服务商的 **API 密钥** 输入框。
 6. 如果 DeepSeek 提示余额不足，请在 DeepSeek 开放平台账号中充值后再试。
 
 当前账号和接口说明请查看 [DeepSeek 官方 API 文档](https://api-docs.deepseek.com/)。
 
 在侧边栏中打开 **Settings**。你也可以在 `chrome://extensions` 的 YouTube Digest 卡片中打开扩展选项。Key 只能粘贴到这些设置输入框中。不要把 Key 发送到 AI 对话、项目文件、截图或公开消息中。
 
-发布版本只支持 DeepSeek V4 Flash：
+发布版本支持多个 AI 服务商，默认使用 DeepSeek V4 Flash：
 
 ```text
 Base URL: https://api.deepseek.com
 Model: deepseek-v4-flash
 ```
 
-YouTube Digest 会让所有 DeepSeek 请求使用非思考模式，以获得更快、更稳定的交互。设置中的接口地址和模型固定，只需要填写 DeepSeek API Key。如果想使用其他服务或模型，请在设置中复制安全的自定义 prompt，让编程 Agent 修改你自己的本地副本。不要把任何 API Key 放进 prompt 或对话。
+YouTube Digest 会让 DeepSeek 请求使用非思考模式，以获得更快、更稳定的交互。设置页允许为每个服务商独立填写 Endpoint、API 密钥、模型并获取模型列表。当前选择的服务商和模型会统一用于所有 AI 功能。不要把任何 API Key 放进 prompt 或对话。
 
 API Key 和设置保存在你设备上的 Chrome 扩展本地存储中。发布包不会包含或使用 `config.js`。
 
@@ -104,7 +104,7 @@ API Key 和设置保存在你设备上的 Chrome 扩展本地存储中。发布�
 - 原文、简体中文和双语对照字幕。
 - AI 概览、选中文本讲解、翻译和自动润色笔记。
 - 本地笔记，以及最近字幕、概览和翻译的本地缓存。
-- 发布版本的所有 AI 功能都使用 DeepSeek V4 Flash。其他服务需要修改本地代码，不属于发布版本的支持范围。
+- 发布版本的所有 AI 功能都使用当前选择的服务商和模型。支持 DeepSeek、Groq、通义千问、火山引擎、Gemini、智谱 GLM、小米 MiMo、本地 OpenAI-compatible 服务和自定义 OpenAI-compatible 服务。
 
 Shorts、直播、私密视频、受访问限制的视频，以及没有原生字幕的视频可能无法使用。目前没有测试 Firefox、Safari、移动浏览器或其他 Chromium 浏览器。
 
@@ -188,9 +188,9 @@ YouTube Digest 没有账号系统、广告、分析统计或行为追踪。Supad
 
 ### YouTube Digest 提示需要设置
 
-- 打开 **Settings**，保存 Supadata Key 和 DeepSeek Key。
-- 发布版本固定使用 DeepSeek V4 Flash，没有需要填写的 Base URL 或 Model 字段。
-- 如果设置提示旧的自定义服务已移除，请重新填写 DeepSeek Key。旧 AI Key 已安全清除，避免被错误用于 DeepSeek。
+- 打开 **Settings**，保存 Supadata Key 和当前 AI 服务商的 API Key。
+- 在 AI 服务卡片中选择服务商、填写 Endpoint、选择模型，必要时点击“获取模型”。
+- 如果设置提示旧的自定义服务已迁移，请检查 DeepSeek 配置并重新保存。
 
 ### 找不到字幕
 

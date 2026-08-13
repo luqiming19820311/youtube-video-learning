@@ -17,29 +17,53 @@
           <div class="video-title" id="videoTitle"></div>
           <div class="video-channel" id="videoChannel"></div>
         </div>
-        <button
-          class="settings-btn"
-          id="settingsBtn"
-          type="button"
-          title="Open YouTube Digest settings"
-          aria-label="Open YouTube Digest settings"
-        >
-          Settings
-        </button>
+        <div class="header-actions">
+          <button
+            class="transcript-toggle"
+            id="transcriptToggle"
+            type="button"
+            role="switch"
+            aria-checked="false"
+            aria-label="Enable Transcript tabs"
+          >
+            <span>Transcript</span>
+            <span class="toggle-track" aria-hidden="true">
+              <span class="toggle-thumb"></span>
+            </span>
+          </button>
+          <button
+            class="settings-btn"
+            id="settingsBtn"
+            type="button"
+            title="Open YouTube Digest settings"
+            aria-label="Open YouTube Digest settings"
+          >
+            Settings
+          </button>
+        </div>
       </div>
 
       <!-- Tab navigation -->
       <div class="tabs" id="tabsNav" style="display: none">
-        <button class="tab active" data-tab="transcript">Transcript</button>
-        <button class="tab" data-tab="overview">Overview</button>
-        <button class="tab" data-tab="notes">Notes</button>
+        <button class="tab active" type="button" data-tab="transcript" disabled aria-disabled="true">Transcript</button>
+        <button class="tab" type="button" data-tab="overview" disabled aria-disabled="true">Overview</button>
+        <button class="tab" type="button" data-tab="notes" disabled aria-disabled="true">Notes</button>
       </div>
     </div>
 
     <!-- MAIN CONTENT -->
     <div class="content" id="contentArea">
+      <!-- TRANSCRIPT DISABLED STATE -->
+      <div id="transcriptDisabledState" class="feature-disabled-container">
+        <div class="feature-disabled-icon" aria-hidden="true">CC</div>
+        <div class="feature-disabled-title">Transcript is off</div>
+        <div class="feature-disabled-desc">
+          Turn on Transcript above to load subtitles, overviews, and notes.
+        </div>
+      </div>
+
       <!-- WELCOME STATE -->
-      <div id="welcomeState" class="welcome-container">
+      <div id="welcomeState" class="welcome-container" style="display: none">
         <div class="welcome-icon">&#9655;</div>
         <div class="welcome-title">Ready to Digest</div>
         <div class="welcome-desc">
@@ -205,6 +229,7 @@
     </button>
 
     <script src="settings.js"></script>
+    <script src="transcript-toggle.js"></script>
     <script src="sidepanel.js"></script>
   </body>
 </html>

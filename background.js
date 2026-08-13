@@ -13,6 +13,7 @@
 
 // Import safe defaults and validation helpers. Secret keys live in
 // chrome.storage.local and are never part of the extension source.
+importScripts("ai-providers.js");
 importScripts("settings.js");
 
 const DEBUG = false;
@@ -34,6 +35,68 @@ chrome.storage.local
 async function getSettings() {
   const stored = await chrome.storage.local.get(YTD_SETTINGS.STORAGE_KEY);
   return YTD_SETTINGS.normalize(stored[YTD_SETTINGS.STORAGE_KEY]);
+}
+
+function activeProviderConfig(settings) {
+  const provider = YTD_AI_PROVIDERS.getProvider(settings.activeProvider);
+  return { provider, config: settings.providers[provider.id] };
+}
+
+function hasActiveAiCredential(settings) {
+  const { provider, config } = activeProviderConfig(settings);
+  return provider.id === "local" || !!config?.apiKey;
+}
+
+async function handleFetchProviderModels(providerId) {
+  const provider = YTD_AI_PROVIDERS.getProvider(providerId);
+  const settings = await getSettings();
+  const config = settings.providers[provider.id];
+  const fallbackResult = () => ({
+    success: false,
+    providerId: provider.id,
+    models: provider.defaultModels,
+    source: "fallback",
+    errorCode: "MODEL_LIST_UNAVAILABLE",
+    message: "无法获取在线模型列表，已显示内置模型。",
+  });
+  if (provider.id !== "local" && !config?.apiKey) return fallbackResult();
+
+  const baseUrl = YTD_AI_PROVIDERS.normalizeBaseUrl(
+    config?.baseUrl,
+    provider.defaultBaseUrl,
+  );
+  const url = `${baseUrl}${provider.modelsEndpoint}`;
+  const requestUrl = provider.protocol === "gemini"
+    ? `${url}?key=${encodeURIComponent(config.apiKey)}`
+    : url;
+  const headers = provider.protocol === "gemini"
+    ? {}
+    : {
+        ...(config.apiKey ? { Authorization: `Bearer ${config.apiKey}` } : {}),
+      };
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 20_000);
+  try {
+    const response = await fetch(requestUrl, { headers, signal: controller.signal });
+    const payload = await response.json();
+    if (!response.ok) return fallbackResult();
+    const models = YTD_AI_PROVIDERS.parseModelResponse(provider.protocol, payload);
+    const result = YTD_AI_PROVIDERS.withModelFallback(provider.id, models);
+    return {
+      success: result.source === "remote",
+      providerId: provider.id,
+      models: result.models,
+      source: result.source,
+      ...(result.source === "fallback" ? {
+        errorCode: "MODEL_LIST_UNAVAILABLE",
+        message: "无法获取在线模型列表，已显示内置模型。",
+      } : {}),
+    };
+  } catch (_error) {
+    return fallbackResult();
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 const promptFileCache = new Map();
@@ -79,24 +142,36 @@ async function requestAiCompletion({
   responseFormat,
 }) {
   const settings = await getSettings();
-  if (!settings.aiApiKey) {
+  const provider = YTD_AI_PROVIDERS.getProvider(settings.activeProvider);
+  const providerConfig = settings.providers[provider.id];
+  if (provider.id !== "local" && !providerConfig.apiKey) {
     const error = new Error(
-      "DeepSeek API key not configured. Open YouTube Digest Settings.",
+      `${provider.name} API key not configured. Open YouTube Digest Settings.`,
     );
     error.code = "NO_AI_KEY";
     throw error;
   }
-  const body = {
-    model: settings.aiModel,
-    max_tokens: maxTokens,
+  const request = YTD_AI_PROVIDERS.buildChatRequest(
+    provider,
+    providerConfig,
+    settings.activeModel,
     messages,
-  };
-  if (typeof temperature === "number") body.temperature = temperature;
-  if (responseFormat) {
-    body.response_format = responseFormat;
+    responseFormat,
+  );
+  if (provider.protocol === "gemini") {
+    request.body.generationConfig = { maxOutputTokens: maxTokens };
+    if (typeof temperature === "number") {
+      request.body.generationConfig.temperature = temperature;
+    }
+    if (responseFormat?.type === "json_object") {
+      request.body.generationConfig.responseMimeType = "application/json";
+    }
+  } else {
+    request.body.max_tokens = maxTokens;
+    if (typeof temperature === "number") request.body.temperature = temperature;
+    // DeepSeek-compatible reasoning controls stay isolated to compatible calls.
+    if (provider.id === "deepseek") request.body.thinking = { type: "disabled" };
   }
-  // Product features need bounded, predictable latency rather than reasoning traces.
-  body.thinking = { type: "disabled" };
 
   const controller = new AbortController();
   let timeoutKind = "";
@@ -121,18 +196,12 @@ async function requestAiCompletion({
   );
   resetIdleTimeout();
   try {
-    const response = await fetch(
-      YTD_SETTINGS.chatCompletionsUrl(),
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${settings.aiApiKey}`,
-        },
-        body: JSON.stringify(body),
-        signal: controller.signal,
-      },
-    );
+    const response = await fetch(request.url, {
+      method: "POST",
+      headers: request.headers,
+      body: JSON.stringify(request.body),
+      signal: controller.signal,
+    });
     // Receiving headers proves DeepSeek is still making progress. DeepSeek
     // may then send blank-line body chunks while a non-streaming request queues.
     resetIdleTimeout();
@@ -143,15 +212,15 @@ async function requestAiCompletion({
       const error = new Error(
         errorData.error?.message ||
           errorData.message ||
-          `DeepSeek error: ${response.status}`,
+          `${provider.name} error: ${response.status}`,
       );
       error.status = response.status;
       throw error;
     }
 
-    const text = data.choices?.[0]?.message?.content;
+    const text = YTD_AI_PROVIDERS.parseChatResponse(provider, data);
     if (typeof text !== "string" || !text.trim()) {
-      const error = new Error("DeepSeek returned an empty response.");
+      const error = new Error(`${provider.name} returned an empty response.`);
       error.code = "EMPTY_AI_RESPONSE";
       throw error;
     }
@@ -160,14 +229,14 @@ async function requestAiCompletion({
   } catch (error) {
     if (timeoutKind === "idle") {
       const timeoutError = new Error(
-        "DeepSeek request was inactive for 50 seconds. Please Retry.",
+        `${provider.name} request was inactive for 50 seconds. Please Retry.`,
       );
       timeoutError.code = "AI_IDLE_TIMEOUT";
       throw timeoutError;
     }
     if (timeoutKind === "hard") {
       const timeoutError = new Error(
-        "DeepSeek request exceeded the 120-second limit. Please Retry.",
+        `${provider.name} request exceeded the 120-second limit. Please Retry.`,
       );
       timeoutError.code = "AI_HARD_TIMEOUT";
       throw timeoutError;
@@ -300,6 +369,18 @@ chrome.tabs.onActivated.addListener(async ({ tabId }) => {
  * This is like a switchboard — different "actions" trigger different handlers.
  */
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.action === "fetchProviderModels") {
+    handleFetchProviderModels(message.providerId)
+      .then(sendResponse)
+      .catch((error) => sendResponse({
+        success: false,
+        providerId: message.providerId,
+        errorCode: "MODEL_LIST_UNAVAILABLE",
+        message: error.message,
+      }));
+    return true;
+  }
+
   // We need to return true to indicate we'll respond asynchronously
   if (message.action === "fetchTranscript") {
     handleFetchTranscript(message.videoId)
@@ -399,7 +480,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       .then((settings) =>
         sendResponse({
           hasSupadataKey: !!settings.supadataApiKey,
-          hasAiKey: !!settings.aiApiKey,
+          hasAiKey: hasActiveAiCredential(settings),
+          activeProvider: settings.activeProvider,
+          activeModel: settings.activeModel,
         }),
       )
       .catch((error) => sendResponse({ error: error.message }));
@@ -878,11 +961,11 @@ async function handleAnalyzeTranscript(
 ) {
   try {
     const settings = await getSettings();
-    if (!settings.aiApiKey) {
+    if (!hasActiveAiCredential(settings)) {
       return {
         success: false,
         error: "NO_AI_KEY",
-        message: "DeepSeek API key not configured. Open YouTube Digest Settings.",
+        message: "当前 AI 服务尚未配置 API Key。请打开 YouTube Digest 设置。",
       };
     }
 
@@ -936,7 +1019,7 @@ async function handleAnalyzeTranscript(
       promptVariables,
     );
 
-    debugLog("[YouTube Digest] Requesting video analysis", settings.aiModel);
+    debugLog("[YouTube Digest] Requesting video analysis", settings.activeProvider, settings.activeModel);
     const { text: responseText } = await requestAiCompletion({
       maxTokens: 8192,
       responseFormat: { type: "json_object" },
@@ -1255,7 +1338,7 @@ async function cleanupNoteText(
   videoTitle,
 ) {
   const settings = await getSettings();
-  if (!settings.aiApiKey) {
+  if (!hasActiveAiCredential(settings)) {
     return [beforeText, targetText, afterText].filter(Boolean).join(" ");
   }
 
@@ -1378,11 +1461,11 @@ async function handleExplainSelection(
 ) {
   try {
     const settings = await getSettings();
-    if (!settings.aiApiKey) {
+    if (!hasActiveAiCredential(settings)) {
       return {
         success: false,
         error: "NO_AI_KEY",
-        message: "DeepSeek API key not configured.",
+        message: "当前 AI 服务尚未配置 API Key。",
       };
     }
 
@@ -1549,8 +1632,8 @@ async function handleTranslateContent(
     }
 
     const settings = await getSettings();
-    if (!settings.aiApiKey) {
-      return { success: false, error: "DeepSeek API key not configured" };
+    if (!hasActiveAiCredential(settings)) {
+      return { success: false, error: "当前 AI 服务尚未配置 API Key" };
     }
 
     const sourceSegments = validateTranscriptBatchRequest(content);
@@ -1687,6 +1770,7 @@ async function callAiTranslation(
 globalThis.__YTD_TRANSLATION_TESTING__ = {
   requestAiCompletion,
   callAiTranslation,
+  handleFetchProviderModels,
   validateTranscriptBatchRequest,
   normalizeTranslatedSegmentBatch,
   mergePlayerCaptionTranslations,

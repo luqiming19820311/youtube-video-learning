@@ -1,6 +1,8 @@
 (() => {
   const NATIVE_CAPTION_STYLE_ID = "ytd-player-captions-hide-native";
   const MAX_PRELOAD_SEGMENTS = 4;
+  const MAX_ATTACH_ATTEMPTS = 20;
+  const ATTACH_RETRY_DELAY_MS = 500;
   const state = {
     videoId: "",
     videoTitle: "",
@@ -48,6 +50,12 @@
       if (!translations.has(id) && !requested.has(id)) ids.push(id);
     }
     return ids;
+  }
+
+  function shouldClearOnNavigation(url, videoId) {
+    const match = String(url || "").match(/[?&]v=([^&#]+)/);
+    const nextVideoId = match ? decodeURIComponent(match[1]) : "";
+    return !nextVideoId || nextVideoId !== videoId;
   }
 
   function findPlayer() {
@@ -127,6 +135,19 @@
     video.addEventListener("seeking", render);
     updateNativeCaptionVisibility();
     return true;
+  }
+
+  function scheduleAttach(videoId, generation, attempt = 0) {
+    if (state.videoId !== videoId || state.generation !== generation) return;
+    if (attachToPlayer()) {
+      render();
+      return;
+    }
+    if (attempt >= MAX_ATTACH_ATTEMPTS - 1) return;
+    setTimeout(
+      () => scheduleAttach(videoId, generation, attempt + 1),
+      ATTACH_RETRY_DELAY_MS,
+    );
   }
 
   function renderLines(lines) {
@@ -217,12 +238,7 @@
     state.failures.clear();
     state.requested.clear();
     if (isNewVideo) state.enabled = false;
-    if (!attachToPlayer()) setTimeout(() => {
-      if (state.videoId === message.videoId) {
-        attachToPlayer();
-        render();
-      }
-    }, 500);
+    scheduleAttach(state.videoId, state.generation);
     if (state.toggle) state.toggle.setAttribute("aria-pressed", String(state.enabled));
     updateNativeCaptionVisibility();
     render();
@@ -230,6 +246,9 @@
 
   function clearCaptionState() {
     state.generation += 1;
+    state.videoId = "";
+    state.videoTitle = "";
+    state.mode = "original";
     state.enabled = false;
     state.segments = [];
     state.translations.clear();
@@ -246,6 +265,15 @@
     removeNativeCaptionStyle();
   }
 
+  function handleNavigationFinish() {
+    const url = window.location.href || "";
+    if (shouldClearOnNavigation(url, state.videoId)) {
+      clearCaptionState();
+      return;
+    }
+    scheduleAttach(state.videoId, state.generation);
+  }
+
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (message.action === "setPlayerCaptionState") {
       setCaptionState(message);
@@ -260,10 +288,11 @@
     return false;
   });
 
-  document.addEventListener("yt-navigate-finish", clearCaptionState);
+  document.addEventListener("yt-navigate-finish", handleNavigationFinish);
   globalThis.__YTD_PLAYER_CAPTIONS_TESTING__ = {
     buildCaptionLines,
     findActiveSegment,
     getTranslationBatch,
+    shouldClearOnNavigation,
   };
 })();

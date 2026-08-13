@@ -9,7 +9,7 @@ const YTD_OPTIONS = (() => {
       languageGroupLabel: "Interface language",
       heading: "Bring your own API keys",
       lede:
-        "Keys stay in this Chrome profile and are sent only to Supadata and DeepSeek. This open-source extension has no developer server or analytics.",
+        "Keys stay in this Chrome profile and are sent only to the selected AI provider and Supadata. This open-source extension has no developer server or analytics.",
       transcriptProvider: "Transcript provider",
       supadataApiKeyLabel: "Supadata API key",
       supadataHelp: "Used to fetch timestamped YouTube subtitles. ",
@@ -17,6 +17,22 @@ const YTD_OPTIONS = (() => {
       supadataHelpSuffix:
         ". Supadata generates the key during onboarding.",
       aiProvider: "AI provider",
+      endpointLabel: "API endpoint",
+      providerApiKeyLabel: "API key",
+      modelLabel: "Model",
+      fetchModels: "Fetch models",
+      providerHelp: "The selected provider and model power all AI features. ",
+      providerKeyLink: "Create an API key",
+      providerHelpText: ({ name }) =>
+        `The selected ${name} provider and model power all AI features.`,
+      localProviderHelpText:
+        "The selected local OpenAI-compatible service powers all AI features. An API key is optional.",
+      providerPrivacyText: ({ name }) =>
+        `When you use AI features, ${name} receives the video transcript and relevant video context. Review the provider's terms and pricing before saving.`,
+      localProviderPrivacyText:
+        "When you use AI features, video transcripts and related context are sent only to your configured local service.",
+      providerKeyPlaceholder: ({ name }) => `Paste your ${name} key`,
+      localKeyPlaceholder: "Optional API key",
       providerSummaryLabel: "Supported AI provider",
       providerBadge: "Supported in this version",
       deepseekApiKeyLabel: "DeepSeek API key",
@@ -59,6 +75,7 @@ const YTD_OPTIONS = (() => {
       saving: "Saving…",
       addSupadataKey: "Add a Supadata API key.",
       addDeepseekKey: "Add a DeepSeek API key.",
+      addProviderKey: "Add an API key for the selected provider.",
       saved: "Saved. Reopen YouTube Digest to use these settings.",
       saveFailed: "Could not save settings. Please try again.",
       copying: "Copying…",
@@ -79,13 +96,29 @@ const YTD_OPTIONS = (() => {
       languageGroupLabel: "界面语言",
       heading: "使用你自己的 API 密钥",
       lede:
-        "密钥仅保存在当前 Chrome 个人资料中，只会发送给 Supadata 和 DeepSeek。本开源扩展没有开发者服务器，也不使用分析服务。",
+        "密钥仅保存在当前 Chrome 个人资料中，只会发送给 Supadata 和当前选择的 AI 服务。本开源扩展没有开发者服务器，也不使用分析服务。",
       transcriptProvider: "字幕服务",
       supadataApiKeyLabel: "Supadata API 密钥",
       supadataHelp: "用于获取带时间戳的 YouTube 字幕。",
       supadataLink: "创建 Supadata 账号并获取密钥",
       supadataHelpSuffix: "。Supadata 会在引导流程中生成密钥。",
       aiProvider: "AI 服务",
+      endpointLabel: "API Endpoint",
+      providerApiKeyLabel: "API 密钥",
+      modelLabel: "模型",
+      fetchModels: "获取模型",
+      providerHelp: "当前选择的服务商和模型会用于全部 AI 功能。",
+      providerKeyLink: "创建 API 密钥",
+      providerHelpText: ({ name }) =>
+        `当前选择的 ${name} 服务商和模型会用于全部 AI 功能。`,
+      localProviderHelpText:
+        "当前选择的本地 OpenAI-compatible 服务会用于全部 AI 功能，API 密钥可不填写。",
+      providerPrivacyText: ({ name }) =>
+        `使用 AI 功能时，${name} 会收到视频字幕及相关视频上下文。保存前请查看该服务商的条款和价格。`,
+      localProviderPrivacyText:
+        "使用 AI 功能时，视频字幕及相关上下文只会发送到你配置的本地服务。",
+      providerKeyPlaceholder: ({ name }) => `粘贴 ${name} API 密钥`,
+      localKeyPlaceholder: "可选 API 密钥",
       providerSummaryLabel: "支持的 AI 服务",
       providerBadge: "当前版本支持",
       deepseekApiKeyLabel: "DeepSeek API 密钥",
@@ -127,6 +160,7 @@ const YTD_OPTIONS = (() => {
       saving: "正在保存…",
       addSupadataKey: "请添加 Supadata API 密钥。",
       addDeepseekKey: "请添加 DeepSeek API 密钥。",
+      addProviderKey: "请添加当前服务商的 API 密钥。",
       saved: "已保存。请重新打开 YouTube Digest 以使用这些设置。",
       saveFailed: "无法保存设置，请重试。",
       copying: "正在复制…",
@@ -341,7 +375,8 @@ const YTD_OPTIONS = (() => {
   function initialize(root = globalThis) {
     const doc = root.document;
     const settingsApi = root.YTD_SETTINGS;
-    if (!doc || !settingsApi) return;
+    const providerApi = root.YTD_AI_PROVIDERS;
+    if (!doc || !settingsApi || !providerApi) return;
 
     const storage = createStorageAdapter(
       root.chrome,
@@ -349,6 +384,15 @@ const YTD_OPTIONS = (() => {
     );
     const form = doc.getElementById("settingsForm");
     const aiApiKeyInput = doc.getElementById("aiApiKey");
+    const aiBaseUrlInput = doc.getElementById("aiBaseUrl");
+    const aiModelSelect = doc.getElementById("aiModel");
+    const providerList = doc.getElementById("providerList");
+    const providerName = doc.getElementById("providerName");
+    const providerHelp = doc.getElementById("providerHelp");
+    const privacyNote = doc.getElementById("privacyNote");
+    const providerKeyLink = doc.getElementById("providerKeyLink");
+    const fetchModelsBtn = doc.getElementById("fetchModelsBtn");
+    const modelStatus = doc.getElementById("modelStatus");
     const supadataApiKeyInput = doc.getElementById("supadataApiKey");
     const customizationPrompt = doc.getElementById("customizationPrompt");
     const copyCustomizationPromptBtn = doc.getElementById(
@@ -361,6 +405,152 @@ const YTD_OPTIONS = (() => {
     const statusStates = new Map();
     const promptDrafts = createPromptDrafts();
     let currentLanguage = "en";
+    let currentSettings = settingsApi.normalize();
+    let persistenceQueue = Promise.resolve();
+    const providerKeyUrls = {
+      deepseek: "https://platform.deepseek.com/api_keys",
+      groq: "https://console.groq.com/keys",
+      qwen: "https://dashscope.console.aliyun.com/apiKey",
+      volcengine: "https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey",
+      gemini: "https://aistudio.google.com/app/apikey",
+      zhipu: "https://open.bigmodel.cn/usercenter/apikeys",
+      mimo: "https://platform.xiaomimimo.com/",
+      custom: "https://platform.openai.com/api-keys",
+      local: "",
+    };
+
+    function setModelStatus(text = "") {
+      modelStatus.textContent = text;
+    }
+
+    function renderModelOptions(config) {
+      aiModelSelect.replaceChildren();
+      for (const model of config.models) {
+        const option = doc.createElement("option");
+        option.value = model.id;
+        option.textContent = model.name;
+        option.selected = model.id === config.activeModel;
+        aiModelSelect.append(option);
+      }
+    }
+
+    function renderProvider() {
+      const provider = providerApi.getProvider(currentSettings.activeProvider);
+      const config = currentSettings.providers[provider.id];
+      providerName.textContent = provider.name;
+      aiBaseUrlInput.value = config.baseUrl;
+      aiApiKeyInput.value = config.apiKey;
+      aiApiKeyInput.placeholder = translate(
+        currentLanguage,
+        provider.id === "local" ? "localKeyPlaceholder" : "providerKeyPlaceholder",
+        { name: provider.name },
+      );
+      renderModelOptions(config);
+      providerHelp.textContent = translate(
+        currentLanguage,
+        provider.id === "local" ? "localProviderHelpText" : "providerHelpText",
+        { name: provider.name },
+      );
+      privacyNote.textContent = translate(
+        currentLanguage,
+        provider.id === "local" ? "localProviderPrivacyText" : "providerPrivacyText",
+        { name: provider.name },
+      );
+      providerKeyLink.href = providerKeyUrls[provider.id] || "#";
+      providerKeyLink.hidden = !providerKeyUrls[provider.id];
+      for (const button of providerList.querySelectorAll("button")) {
+        button.setAttribute("aria-selected", String(button.dataset.provider === provider.id));
+      }
+    }
+
+    function renderProviderList() {
+      providerList.replaceChildren();
+      for (const provider of providerApi.listProviders()) {
+        const button = doc.createElement("button");
+        button.type = "button";
+        button.dataset.provider = provider.id;
+        button.textContent = provider.name;
+        button.setAttribute("role", "option");
+        button.addEventListener("click", () => switchProvider(provider.id));
+        providerList.append(button);
+      }
+    }
+
+    function captureCurrentProvider() {
+      const provider = providerApi.getProvider(currentSettings.activeProvider);
+      currentSettings.providers[provider.id] = providerApi.normalizeProviderConfig(provider.id, {
+        ...currentSettings.providers[provider.id],
+        baseUrl: aiBaseUrlInput.value,
+        apiKey: aiApiKeyInput.value,
+        activeModel: aiModelSelect.value,
+      });
+      currentSettings.activeModel = currentSettings.providers[provider.id].activeModel;
+    }
+
+    function persistCurrentSelection() {
+      captureCurrentProvider();
+      currentSettings = settingsApi.normalize(currentSettings);
+      const snapshot = currentSettings;
+      const write = persistenceQueue
+        .catch(() => {})
+        .then(() => storage.set({ [settingsApi.STORAGE_KEY]: snapshot }));
+      persistenceQueue = write;
+      return write;
+    }
+
+    function switchProvider(providerId) {
+      captureCurrentProvider();
+      currentSettings.activeProvider = providerApi.getProvider(providerId).id;
+      currentSettings.activeModel = currentSettings.providers[currentSettings.activeProvider].activeModel;
+      setModelStatus("");
+      renderProvider();
+      void persistCurrentSelection().catch(() => {
+        setModelStatus(currentLanguage === "zh-CN" ? "服务商切换未保存，请点击保存设置。" : "Provider selection was not saved; click Save settings.");
+      });
+    }
+
+    async function requestProviderPermission(baseUrl) {
+      if (!root.chrome?.permissions?.request) return true;
+      try {
+        const origin = new URL(baseUrl).origin;
+        return await root.chrome.permissions.request({ origins: [`${origin}/*`] });
+      } catch (_error) {
+        return false;
+      }
+    }
+
+    async function fetchModels() {
+      captureCurrentProvider();
+      const provider = providerApi.getProvider(currentSettings.activeProvider);
+      const config = currentSettings.providers[provider.id];
+      renderProvider();
+      setModelStatus(currentLanguage === "zh-CN" ? "正在获取模型…" : "Fetching models…");
+      if (!(await requestProviderPermission(config.baseUrl))) {
+        setModelStatus(currentLanguage === "zh-CN" ? "未获得该服务商的域名权限。" : "Provider domain permission was not granted.");
+        return;
+      }
+      try {
+        await persistCurrentSelection();
+        const result = root.chrome?.runtime?.sendMessage
+          ? await root.chrome.runtime.sendMessage({ action: "fetchProviderModels", providerId: provider.id })
+          : { success: false, models: provider.defaultModels, source: "fallback" };
+        const models = providerApi.withModelFallback(provider.id, result?.models).models;
+        currentSettings.providers[provider.id] = providerApi.normalizeProviderConfig(provider.id, {
+          ...config,
+          models,
+          activeModel: config.activeModel,
+          modelsFetchedAt: Date.now(),
+        });
+        currentSettings.activeModel = currentSettings.providers[provider.id].activeModel;
+        renderProvider();
+        await persistCurrentSelection();
+        setModelStatus(result?.source === "fallback"
+          ? (currentLanguage === "zh-CN" ? "在线列表不可用，已使用内置模型。" : "Online list unavailable; built-in models are shown.")
+          : (currentLanguage === "zh-CN" ? "模型列表已更新。" : "Model list updated."));
+      } catch (_error) {
+        setModelStatus(currentLanguage === "zh-CN" ? "获取模型失败，已保留当前列表。" : "Could not fetch models; current list was kept.");
+      }
+    }
 
     function renderStatus(element) {
       const state = statusStates.get(element);
@@ -410,6 +600,7 @@ const YTD_OPTIONS = (() => {
       );
       updateLanguageButtonState(languageButtons, currentLanguage);
       for (const element of statusStates.keys()) renderStatus(element);
+      if (providerList.children.length) renderProvider();
     }
 
     async function loadSettings() {
@@ -419,8 +610,9 @@ const YTD_OPTIONS = (() => {
           stored[settingsApi.STORAGE_KEY],
         );
         const settings = migration.settings;
-
-        aiApiKeyInput.value = settings.aiApiKey;
+        currentSettings = settings;
+        renderProviderList();
+        renderProvider();
         supadataApiKeyInput.value = settings.supadataApiKey;
         if (migration.migrated) {
           await storage.set({ [settingsApi.STORAGE_KEY]: settings });
@@ -444,22 +636,27 @@ const YTD_OPTIONS = (() => {
       event.preventDefault();
       setStatus(saveStatus, "saving");
 
-      const settings = settingsApi.normalize({
-        aiApiKey: aiApiKeyInput.value,
-        supadataApiKey: supadataApiKeyInput.value,
-      });
+      captureCurrentProvider();
+      currentSettings.supadataApiKey = supadataApiKeyInput.value;
+      const settings = settingsApi.normalize(currentSettings);
 
       if (!settings.supadataApiKey) {
         setStatus(saveStatus, "addSupadataKey");
         return;
       }
-      if (!settings.aiApiKey) {
-        setStatus(saveStatus, "addDeepseekKey");
+      const activeConfig = settings.providers[settings.activeProvider];
+      if (settings.activeProvider !== "local" && !activeConfig.apiKey) {
+        setStatus(saveStatus, "addProviderKey");
+        return;
+      }
+      if (!(await requestProviderPermission(activeConfig.baseUrl))) {
+        setStatus(saveStatus, "saveFailed");
         return;
       }
 
       try {
         await storage.set({ [settingsApi.STORAGE_KEY]: settings });
+        currentSettings = settings;
         setStatus(saveStatus, "saved");
       } catch (_error) {
         setStatus(saveStatus, "saveFailed");
@@ -504,6 +701,14 @@ const YTD_OPTIONS = (() => {
     }
 
     form.addEventListener("submit", saveSettings);
+    fetchModelsBtn.addEventListener("click", fetchModels);
+    aiModelSelect.addEventListener("change", () => {
+      currentSettings.activeModel = aiModelSelect.value;
+      captureCurrentProvider();
+      void persistCurrentSelection().catch(() => {
+        setModelStatus(currentLanguage === "zh-CN" ? "模型切换未保存，请点击保存设置。" : "Model selection was not saved; click Save settings.");
+      });
+    });
     copyCustomizationPromptBtn.addEventListener(
       "click",
       copyCustomizationPrompt,
@@ -516,6 +721,7 @@ const YTD_OPTIONS = (() => {
     for (const button of languageButtons) {
       button.addEventListener("click", async () => {
         const language = button.dataset.language;
+        captureCurrentProvider();
         applyLanguage(language);
         await persistPreferredLanguage(storage, language);
       });

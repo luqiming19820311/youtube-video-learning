@@ -191,6 +191,14 @@ test("customization prompt switches languages and preserves technical values", (
   assert.doesNotMatch(html, /<textarea id="customizationPrompt"[^>]*data-i18n/);
 });
 
+test("provider and model selections persist immediately instead of waiting for form submit", () => {
+  const source = read("options.js");
+  assert.match(source, /function persistCurrentSelection\(\)/);
+  assert.match(source, /switchProvider\(provider\.id\)/);
+  assert.match(source, /persistCurrentSelection\(\)\.catch/);
+  assert.match(source, /aiModelSelect\.addEventListener\("change"/);
+});
+
 test("language switching preserves edited prompt drafts for the page session", () => {
   const drafts = options.createPromptDrafts();
   const chineseDefault = drafts["zh-CN"];

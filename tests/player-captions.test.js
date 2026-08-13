@@ -95,3 +95,31 @@ test("CC control stays in the player safe area and isolates its pointer events",
   assert.match(source, /state\.toggle\.addEventListener\("click", \(event\) => \{\s+event\.preventDefault\(\);\s+event\.stopPropagation\(\);/);
   assert.doesNotMatch(source, /button \{ position:absolute; right:14px; bottom:14px/);
 });
+
+test("same-video YouTube navigation preserves CC state while a new video clears it", () => {
+  const { shouldClearOnNavigation } = loadPlayerCaptions();
+
+  assert.equal(
+    shouldClearOnNavigation(
+      "https://www.youtube.com/watch?v=current123",
+      "current123",
+    ),
+    false,
+  );
+  assert.equal(
+    shouldClearOnNavigation(
+      "https://www.youtube.com/watch?v=next456",
+      "current123",
+    ),
+    true,
+  );
+});
+
+test("caption state retries mounting until the YouTube player is ready", () => {
+  const source = fs.readFileSync(path.join(root, "player-captions.js"), "utf8");
+
+  assert.match(source, /const MAX_ATTACH_ATTEMPTS = 20;/);
+  assert.match(source, /function scheduleAttach\(videoId, generation, attempt = 0\)/);
+  assert.match(source, /if \(attachToPlayer\(\)\) \{\s*render\(\);\s*return;/);
+  assert.match(source, /scheduleAttach\(videoId, generation, attempt \+ 1\)/);
+});

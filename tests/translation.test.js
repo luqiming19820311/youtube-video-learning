@@ -6,6 +6,8 @@ const vm = require("node:vm");
 
 const root = path.resolve(__dirname, "..");
 const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
+const providerHelpers = require("../ai-providers.js");
+const settingsHelpers = require("../settings.js");
 
 function loadSidepanelHelpers({
   sendMessage = () => Promise.resolve({}),
@@ -102,9 +104,10 @@ function loadBackgroundHelpers({
     },
     YTD_SETTINGS: {
       STORAGE_KEY: "ytd_settings",
-      normalize: (value) => value,
+      normalize: (value) => settingsHelpers.normalize(value),
       chatCompletionsUrl: (baseUrl) => `${baseUrl}/chat/completions`,
     },
+    YTD_AI_PROVIDERS: providerHelpers,
   };
   sandbox.globalThis = sandbox;
   vm.runInNewContext(read("background.js"), sandbox);

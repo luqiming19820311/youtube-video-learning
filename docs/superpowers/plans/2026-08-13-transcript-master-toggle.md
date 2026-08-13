@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add a persistent, default-off `Transcript` master switch that enables or disables the `Transcript`, `Overview`, and `Notes` tabs without hiding or clearing their current content.
+**Goal:** Add a persistent, default-off `Transcript` master switch that prevents subtitle requests and hides Transcript results until the user enables it.
 
 **Architecture:** A focused `transcript-toggle.js` module owns normalization, local persistence, and DOM disabled-state synchronization. `sidepanel.js` creates the controller and uses its `isEnabled()` guard before switching tabs, while `sidepanel.html` starts tabs disabled to prevent an enabled flash before storage loads.
 
@@ -11,10 +11,12 @@
 ## Global Constraints
 
 - The switch defaults to off when no stored value exists or storage reads fail.
-- Disabling tabs must not hide the current panel or clear transcript, analysis, translation, or notes data.
-- Re-enabling restores tab interaction without refetching data.
+- Disabling hides Transcript results and prevents new subtitle, translation, analysis, and notes requests without clearing cached data.
+- In-flight responses started before disabling must be ignored.
+- Re-enabling restores tab interaction and prefers cached transcript data before requesting Supadata.
+- The player `CC` control is available only while Transcript is enabled and the current video's transcript is loaded; disabling Transcript removes it immediately.
 - The state is stored outside `ytd_settings`; do not change that public settings structure.
-- The player `CC` control and `Original / 中文 / 双语` transcript modes are out of scope.
+- The `Original / 中文 / 双语` transcript modes remain unchanged.
 - Do not add external dependencies, permissions, API calls, or version changes.
 
 ---
@@ -256,7 +258,7 @@ npm run package
 git diff --check
 ```
 
-Expected: all tests and release checks PASS, and `dist/youtube-digest-v1.1.6.zip` is recreated with `transcript-toggle.js` included.
+Expected: all tests and release checks PASS, and `dist/youtube-digest-v1.7.0.zip` is recreated with `transcript-toggle.js` included.
 
 - [ ] **Step 5: Commit release integration**
 

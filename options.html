@@ -75,20 +75,21 @@
 
         <section class="card">
           <h2 data-i18n="aiProvider">AI provider</h2>
+          <div id="providerList" class="provider-list" role="listbox" aria-label="AI providers"></div>
           <div
             class="provider-summary"
             aria-label="Supported AI provider"
             data-i18n-aria-label="providerSummaryLabel"
           >
-            <span class="provider-name">DeepSeek V4 Flash</span>
+            <span id="providerName" class="provider-name">DeepSeek</span>
             <span class="provider-badge" data-i18n="providerBadge"
               >Supported in this version</span
             >
           </div>
 
-          <label for="aiApiKey" data-i18n="deepseekApiKeyLabel"
-            >DeepSeek API key</label
-          >
+          <label for="aiBaseUrl" data-i18n="endpointLabel">API endpoint</label>
+          <input id="aiBaseUrl" name="aiBaseUrl" type="url" autocomplete="off" spellcheck="false" />
+          <label for="aiApiKey" data-i18n="providerApiKeyLabel">API key</label>
           <input
             id="aiApiKey"
             name="aiApiKey"
@@ -97,22 +98,25 @@
             spellcheck="false"
             placeholder="Paste your DeepSeek key"
           />
+          <div class="model-toolbar">
+            <label for="aiModel" data-i18n="modelLabel">Model</label>
+            <button id="fetchModelsBtn" type="button" data-i18n="fetchModels">Fetch models</button>
+          </div>
+          <select id="aiModel" name="aiModel" aria-describedby="modelStatus"></select>
           <p class="help">
-            <span data-i18n="deepseekHelp"
-              >YouTube Digest uses DeepSeek V4 Flash for overviews,
-              explanations, translation, and note polishing.</span
-            >
+            <span id="providerHelp">The selected provider and model power all AI features.</span>
             <a
+              id="providerKeyLink"
               href="https://platform.deepseek.com/api_keys"
               target="_blank"
               rel="noreferrer"
-              data-i18n="deepseekLink"
-              >Create a DeepSeek API key</a
+              data-i18n="providerKeyLink"
+              >Create an API key</a
             ><span data-i18n="deepseekHelpSuffix">.</span>
           </p>
-          <div class="privacy-note" data-i18n="privacyNote">
-            When you use AI features, DeepSeek receives the video transcript
-            and relevant video context. Review DeepSeek's terms and pricing
+          <div id="privacyNote" class="privacy-note">
+            When you use AI features, the selected provider receives the video transcript
+            and relevant video context. Review that provider's terms and pricing
             before saving.
           </div>
         </section>
@@ -221,6 +225,7 @@
       </footer>
     </main>
 
+    <script src="ai-providers.js"></script>
     <script src="settings.js"></script>
     <script src="options.js"></script>
   </body>

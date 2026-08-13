@@ -26,7 +26,7 @@ YouTube Digest sends the canonical YouTube video URL to `https://api.supadata.ai
 
 ### DeepSeek
 
-The published version sends AI feature content to DeepSeek V4 Flash at `https://api.deepseek.com`:
+The published version sends AI feature content to the provider and model you select in Settings. DeepSeek V4 Flash is the default; supported alternatives include Groq, Qwen, Volcengine, Gemini, Zhipu GLM, Xiaomi MiMo, local OpenAI-compatible services, and custom OpenAI-compatible endpoints.
 
 - transcript plus relevant title, channel, description, or duration for an overview;
 - selected text plus nearby transcript context for an explanation;
@@ -34,7 +34,7 @@ The published version sends AI feature content to DeepSeek V4 Flash at `https://
   translation, or requested overview or explanation content;
 - nearby transcript context and video metadata when polishing a saved note.
 
-The endpoint and `deepseek-v4-flash` model are fixed in the published Settings page. You provide one DeepSeek API key. To use another provider or model, you must adapt your own local source copy and its permissions. The Settings page provides a coding-agent prompt for that purpose and warns you never to include an API key in the prompt or chat.
+Each provider has its own API key, endpoint, and model list. Model lists are fetched directly from the selected provider when requested and fall back to built-in IDs when unavailable. API keys remain in Chrome local extension storage and are sent only to the selected provider.
 
 Requests go directly from the extension to Supadata or DeepSeek. They are authenticated with the keys you supply. YouTube Digest's developer does not proxy or receive these requests.
 
@@ -71,7 +71,7 @@ YouTube Digest uses Chrome permissions for these purposes:
 - `scripting`: coordinate the extension's YouTube page controls.
 - YouTube host access: read the active video's URL and metadata and provide timestamp controls.
 - Supadata host access: retrieve transcripts.
-- DeepSeek host access: provide AI overviews, explanations, translation, and note polishing through DeepSeek V4 Flash.
+- Selected-provider host access: provide AI overviews, explanations, translation, note polishing, and player-caption translation through the provider and model chosen in Settings.
 
 YouTube Digest does not use these permissions to monitor general browsing activity.
 

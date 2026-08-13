@@ -127,6 +127,72 @@ body {
   flex: 1;
 }
 
+.header-actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.transcript-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font: 600 11px/1.4 var(--font-body);
+}
+
+.transcript-toggle:hover,
+.transcript-toggle:focus-visible {
+  border-color: var(--accent);
+  color: var(--accent-hover);
+}
+
+.transcript-toggle:focus-visible {
+  outline: 2px solid var(--accent-dim);
+  outline-offset: 2px;
+}
+
+.toggle-track {
+  position: relative;
+  width: 28px;
+  height: 16px;
+  border-radius: var(--r-pill);
+  background: var(--border-heavy);
+  transition: background 0.18s ease;
+}
+
+.toggle-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.18s ease;
+}
+
+.transcript-toggle[aria-checked="true"] {
+  border-color: var(--accent);
+  color: var(--accent-hover);
+  background: var(--accent-dim);
+}
+
+.transcript-toggle[aria-checked="true"] .toggle-track {
+  background: var(--accent);
+}
+
+.transcript-toggle[aria-checked="true"] .toggle-thumb {
+  transform: translateX(12px);
+}
+
 .settings-btn {
   flex-shrink: 0;
   padding: 5px 10px;
@@ -195,6 +261,15 @@ body {
   background: var(--accent);
 }
 
+.tab:disabled,
+.tab:disabled:hover {
+  color: var(--text-muted);
+  background: none;
+  box-shadow: none;
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
 /* ============================================================
    CONTENT AREA
    ============================================================ */
@@ -202,6 +277,38 @@ body {
   flex: 1;
   padding: 24px 20px 20px;
   overflow-y: auto;
+}
+
+.feature-disabled-container {
+  min-height: 240px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.feature-disabled-icon {
+  display: grid;
+  width: 46px;
+  height: 34px;
+  place-items: center;
+  border: 2px solid var(--border-heavy);
+  border-radius: var(--r-sm);
+  font: 800 13px/1 var(--font-body);
+}
+
+.feature-disabled-title {
+  color: var(--text-secondary);
+  font-size: 16px;
+  font-weight: 750;
+}
+
+.feature-disabled-desc {
+  max-width: 320px;
+  font-size: 13px;
 }
 
 .tab-panel {

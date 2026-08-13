@@ -176,6 +176,46 @@ a {
   gap: 10px;
 }
 
+.provider-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+  margin: 0 0 16px;
+}
+
+.provider-list button,
+.model-toolbar button {
+  padding: 9px 11px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--text);
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.provider-list button[aria-selected="true"] {
+  border-color: var(--accent);
+  background: #fdf0eb;
+  color: var(--accent-hover);
+}
+
+.model-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.model-toolbar label {
+  margin: 0;
+}
+
+#modelStatus {
+  min-height: 1.55em;
+}
+
 .provider-summary {
   justify-content: space-between;
   margin-bottom: 18px;
