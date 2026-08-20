@@ -3,6 +3,9 @@
   const providerApi = globalThis.YTD_AI_PROVIDERS || (
     typeof require === "function" ? require("./ai-providers.js") : null
   );
+  const ttsSettingsApi = globalThis.YTD_TTS_SETTINGS || (
+    typeof require === "function" ? require("./tts-settings.js") : null
+  );
   const STORAGE_KEY = "ytd_settings";
   const DEFAULTS = Object.freeze({
     provider: "deepseek",
@@ -70,6 +73,7 @@
       supadataApiKey: typeof input.supadataApiKey === "string"
         ? input.supadataApiKey.trim()
         : "",
+      voice: ttsSettingsApi.normalize(input.voice),
     };
   }
 

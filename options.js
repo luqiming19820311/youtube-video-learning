@@ -42,6 +42,20 @@ const YTD_OPTIONS = (() => {
       deepseekHelpSuffix: ".",
       privacyNote:
         "When you use AI features, DeepSeek receives the video transcript and relevant video context. Review DeepSeek's terms and pricing before saving.",
+      ttsSettings: "TTS settings",
+      ttsSettingsHelp: "Choose a Chinese voice for synchronized Voice playback.",
+      systemTts: "System local",
+      systemTtsHelp: "Chinese speech installed in Chrome or your operating system",
+      mimoTtsHelp: "Low-latency streaming Chinese speech",
+      systemVoiceLabel: "System Chinese voice",
+      testSystemVoice: "Test and select",
+      mimoAccessModeLabel: "Access mode",
+      standardApi: "Standard API",
+      tokenPlan: "Token Plan",
+      mimoVoiceLabel: "MiMo Chinese voice",
+      ttsTimeout: "Timeout (ms)",
+      ttsRetries: "Retries",
+      testMimoTts: "Test and select MiMo",
       saveSettings: "Save settings",
       localRemix: "Local remix",
       customizationTitle: "Want to use another AI model?",
@@ -128,6 +142,20 @@ const YTD_OPTIONS = (() => {
       deepseekHelpSuffix: "。",
       privacyNote:
         "使用 AI 功能时，DeepSeek 会收到视频字幕及相关视频上下文。保存前请查看 DeepSeek 的服务条款和价格。",
+      ttsSettings: "TTS 设置",
+      ttsSettingsHelp: "选择用于同步 Voice 播报的中文语音。",
+      systemTts: "系统本地",
+      systemTtsHelp: "使用 Chrome 或操作系统中安装的中文语音",
+      mimoTtsHelp: "低延迟流式中文语音合成",
+      systemVoiceLabel: "系统中文语音",
+      testSystemVoice: "测试并选中",
+      mimoAccessModeLabel: "接入版本",
+      standardApi: "标准 API",
+      tokenPlan: "编程套餐",
+      mimoVoiceLabel: "MiMo 中文音色",
+      ttsTimeout: "请求超时（毫秒）",
+      ttsRetries: "失败重试",
+      testMimoTts: "测试并选中 MiMo",
       saveSettings: "保存设置",
       localRemix: "本地改造",
       customizationTitle: "想使用其他 AI 模型？",
@@ -377,6 +405,12 @@ const YTD_OPTIONS = (() => {
     const settingsApi = root.YTD_SETTINGS;
     const providerApi = root.YTD_AI_PROVIDERS;
     if (!doc || !settingsApi || !providerApi) return;
+    const ttsSettingsApi = root.YTD_TTS_SETTINGS || (
+      typeof require === "function" ? require("./tts-settings.js") : null
+    );
+    const ttsOptionsApi = root.YTD_TTS_OPTIONS || (
+      typeof require === "function" ? require("./tts-options.js") : null
+    );
 
     const storage = createStorageAdapter(
       root.chrome,
@@ -407,6 +441,16 @@ const YTD_OPTIONS = (() => {
     let currentLanguage = "en";
     let currentSettings = settingsApi.normalize();
     let persistenceQueue = Promise.resolve();
+    const ttsController = doc.getElementById("ttsProviderList") && ttsSettingsApi && ttsOptionsApi
+      ? ttsOptionsApi.createController({
+          root,
+          document: doc,
+          ttsSettings: ttsSettingsApi,
+          onChange(voice) {
+            currentSettings.voice = voice;
+          },
+        })
+      : null;
     const providerKeyUrls = {
       deepseek: "https://platform.deepseek.com/api_keys",
       groq: "https://console.groq.com/keys",
@@ -611,6 +655,7 @@ const YTD_OPTIONS = (() => {
         );
         const settings = migration.settings;
         currentSettings = settings;
+        ttsController?.load(settings.voice);
         renderProviderList();
         renderProvider();
         supadataApiKeyInput.value = settings.supadataApiKey;
@@ -637,6 +682,7 @@ const YTD_OPTIONS = (() => {
       setStatus(saveStatus, "saving");
 
       captureCurrentProvider();
+      if (ttsController) currentSettings.voice = ttsController.capture();
       currentSettings.supadataApiKey = supadataApiKeyInput.value;
       const settings = settingsApi.normalize(currentSettings);
 
@@ -647,6 +693,10 @@ const YTD_OPTIONS = (() => {
       const activeConfig = settings.providers[settings.activeProvider];
       if (settings.activeProvider !== "local" && !activeConfig.apiKey) {
         setStatus(saveStatus, "addProviderKey");
+        return;
+      }
+      if (ttsController && !ttsController.validate()) {
+        setStatus(saveStatus, "saveFailed");
         return;
       }
       if (!(await requestProviderPermission(activeConfig.baseUrl))) {

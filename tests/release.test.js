@@ -17,7 +17,7 @@ test("manifest uses minimized install-time permissions", () => {
   assert.ok(!manifest.permissions.includes("activeTab"));
   assert.ok(manifest.host_permissions.includes("https://api.deepseek.com/*"));
   assert.ok(manifest.optional_host_permissions.includes("https://api.groq.com/*"));
-  assert.equal(manifest.version, "1.7.0");
+  assert.equal(manifest.version, "1.8.0");
 });
 
 test("Transcript toggle controller is included in the release package", () => {
@@ -32,6 +32,23 @@ test("Transcript toggle controller is included in the release package", () => {
     sidepanel,
     /<script src="transcript-toggle\.js"><\/script>[\s\S]*<script src="sidepanel\.js"><\/script>/,
   );
+});
+
+test("Voice runtime modules are included in the release package", () => {
+  const releaseCheck = read("scripts/check-release.sh");
+  for (const file of [
+    "tts-settings.js",
+    "tts-options.js",
+    "voice-sync.js",
+    "voice-translation.js",
+    "voice-controller.js",
+    "voice-playback.js",
+    "mimo-tts.js",
+    "tts-stream-player.js",
+    "tts-audio-worklet.js",
+  ]) {
+    assert.equal((releaseCheck.match(new RegExp(`"${file.replace(".", "\\.")}"`, "g")) || []).length, 2);
+  }
 });
 
 test("release copy documents current scope without em dashes", () => {

@@ -193,6 +193,37 @@ body {
   transform: translateX(12px);
 }
 
+.voice-toggle:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.voice-toggle[data-state="loading"] {
+  color: var(--highlight);
+  border-color: var(--highlight);
+}
+
+.voice-toggle[data-state="paused"] {
+  color: var(--sage);
+  border-color: var(--sage);
+}
+
+.voice-toggle[data-state="error"] {
+  color: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
+.voice-status {
+  margin-top: 7px;
+  color: var(--text-muted);
+  font: 500 11px/1.4 var(--font-body);
+  text-align: right;
+}
+
+.voice-status[data-state="error"] {
+  color: var(--accent-hover);
+}
+
 .settings-btn {
   flex-shrink: 0;
   padding: 5px 10px;

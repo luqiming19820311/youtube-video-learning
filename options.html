@@ -103,6 +103,7 @@
             <button id="fetchModelsBtn" type="button" data-i18n="fetchModels">Fetch models</button>
           </div>
           <select id="aiModel" name="aiModel" aria-describedby="modelStatus"></select>
+          <p id="modelStatus" class="help" role="status" aria-live="polite"></p>
           <p class="help">
             <span id="providerHelp">The selected provider and model power all AI features.</span>
             <a
@@ -119,6 +120,52 @@
             and relevant video context. Review that provider's terms and pricing
             before saving.
           </div>
+        </section>
+
+        <section class="card tts-card">
+          <h2 data-i18n="ttsSettings">TTS settings</h2>
+          <p class="help" data-i18n="ttsSettingsHelp">Choose a Chinese voice for synchronized Voice playback.</p>
+          <div id="ttsProviderList" class="tts-provider-list" role="listbox" aria-label="TTS providers">
+            <button type="button" data-tts-provider="system" aria-selected="true">
+              <strong data-i18n="systemTts">System local</strong>
+              <span data-i18n="systemTtsHelp">Chinese speech installed in Chrome or your operating system</span>
+            </button>
+            <button type="button" data-tts-provider="mimo" aria-selected="false">
+              <strong>Xiaomi MiMo</strong>
+              <span data-i18n="mimoTtsHelp">Low-latency streaming Chinese speech</span>
+            </button>
+          </div>
+
+          <div id="systemTtsPanel" class="tts-provider-panel">
+            <label for="systemVoice" data-i18n="systemVoiceLabel">System Chinese voice</label>
+            <select id="systemVoice"></select>
+            <button id="testSystemVoiceBtn" type="button" data-i18n="testSystemVoice">Test and select</button>
+          </div>
+
+          <div id="mimoTtsPanel" class="tts-provider-panel" hidden>
+            <label for="mimoAccessMode" data-i18n="mimoAccessModeLabel">Access mode</label>
+            <select id="mimoAccessMode">
+              <option value="standard" data-i18n="standardApi">Standard API</option>
+              <option value="tokenPlan" data-i18n="tokenPlan">Token Plan</option>
+            </select>
+            <label for="mimoTtsBaseUrl" data-i18n="endpointLabel">API endpoint</label>
+            <input id="mimoTtsBaseUrl" type="url" autocomplete="off" spellcheck="false" />
+            <label for="mimoTtsApiKey" data-i18n="providerApiKeyLabel">API key</label>
+            <input id="mimoTtsApiKey" type="password" autocomplete="off" spellcheck="false" />
+            <label for="mimoTtsModel" data-i18n="modelLabel">Model</label>
+            <select id="mimoTtsModel"><option value="mimo-v2.5-tts">mimo-v2.5-tts</option></select>
+            <label for="mimoTtsVoice" data-i18n="mimoVoiceLabel">MiMo Chinese voice</label>
+            <select id="mimoTtsVoice">
+              <option value="冰糖">冰糖</option><option value="茉莉">茉莉</option>
+              <option value="苏打">苏打</option><option value="白桦">白桦</option>
+            </select>
+            <div class="tts-advanced-grid">
+              <label><span data-i18n="ttsTimeout">Timeout (ms)</span><input id="mimoTtsTimeout" type="number" min="5000" max="60000" step="1000" /></label>
+              <label><span data-i18n="ttsRetries">Retries</span><input id="mimoTtsRetries" type="number" min="0" max="1" /></label>
+            </div>
+            <button id="testTtsBtn" type="button" data-i18n="testMimoTts">Test and select MiMo</button>
+          </div>
+          <p id="ttsStatus" class="help" role="status" aria-live="polite"></p>
         </section>
 
         <div class="form-actions">
@@ -226,7 +273,10 @@
     </main>
 
     <script src="ai-providers.js"></script>
+    <script src="tts-settings.js"></script>
     <script src="settings.js"></script>
+    <script src="tts-stream-player.js"></script>
+    <script src="tts-options.js"></script>
     <script src="options.js"></script>
   </body>
 </html>

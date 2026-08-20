@@ -1,6 +1,6 @@
 # Privacy
 
-Effective: July 28, 2026
+Effective: August 17, 2026
 
 YouTube Digest is a GitHub-only, bring-your-own-key Chrome extension. It has no YouTube Digest account, developer-operated backend, analytics, advertising, or telemetry.
 
@@ -15,7 +15,8 @@ Depending on the feature you use, YouTube Digest handles:
 - transcript context around a timestamped note;
 - content you ask to translate;
 - notes you save;
-- Supadata and DeepSeek configuration, including API keys; and
+- Supadata, AI-provider, and optional TTS-provider configuration, including API keys;
+- Chinese narration text and in-memory streamed PCM audio when Voice is enabled; and
 - cached transcript, digest, and translation results.
 
 ## Where data goes
@@ -40,11 +41,19 @@ Requests go directly from the extension to Supadata or DeepSeek. They are authen
 
 Those services process data under their own terms, privacy policies, retention practices, and account settings. Do not send confidential, personal, or regulated content unless their terms and your obligations permit it.
 
+### Voice and TTS
+
+Voice always starts off when a side-panel session opens and requires Transcript to be enabled. For a Chinese transcript, the extension sends the subtitle text directly to the selected TTS service. For another language, the selected AI provider first receives batches of up to six source segments and returns Chinese text for narration.
+
+When **System local** is selected, speech synthesis is performed by Chrome or the operating system using an installed Chinese voice. YouTube Digest does not send that narration text to a TTS API.
+
+When **Xiaomi MiMo** is selected, the extension sends each Chinese narration segment, a natural-language pace instruction, the selected built-in voice, and your MiMo credential directly to the configured Xiaomi MiMo endpoint. MiMo returns 24 kHz PCM16LE mono audio in streamed Base64 chunks. Audio is decoded and played in memory; YouTube Digest does not save or cache synthesized audio.
+
 ## Local storage and retention
 
 YouTube Digest uses Chrome's local extension storage, not a YouTube Digest cloud service.
 
-- Supadata and DeepSeek settings and API keys remain on the device in Chrome's extension storage.
+- Supadata, AI-provider, and Xiaomi MiMo settings and API keys remain on the device in Chrome's extension storage.
 - Saved notes remain until you delete them or remove/clear the extension's data. The extension keeps up to 100 notes.
 - Recent transcript, digest, and per-segment translation cache entries are stored
   locally. The cache is limited to 20 videos, and entries older than 30 days are
@@ -72,6 +81,7 @@ YouTube Digest uses Chrome permissions for these purposes:
 - YouTube host access: read the active video's URL and metadata and provide timestamp controls.
 - Supadata host access: retrieve transcripts.
 - Selected-provider host access: provide AI overviews, explanations, translation, note polishing, and player-caption translation through the provider and model chosen in Settings.
+- Optional Xiaomi MiMo host access: test and stream Chinese TTS only after the user selects MiMo and grants the matching host permission.
 
 YouTube Digest does not use these permissions to monitor general browsing activity.
 

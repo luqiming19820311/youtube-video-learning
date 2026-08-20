@@ -111,6 +111,14 @@
       event.stopPropagation();
       state.enabled = !state.enabled;
       state.toggle.setAttribute("aria-pressed", String(state.enabled));
+      // CC is a user preference: persist it so the next video keeps it.
+      try {
+        Promise.resolve(
+          chrome.runtime.sendMessage({ action: "setPlayerCcEnabled", enabled: state.enabled }),
+        ).catch(() => {});
+      } catch (_error) {
+        // The service worker may be asleep; the on-screen state still applies.
+      }
       updateNativeCaptionVisibility();
       render();
     });
@@ -237,7 +245,9 @@
     );
     state.failures.clear();
     state.requested.clear();
-    if (isNewVideo) state.enabled = false;
+    // New video: restore the user's persisted CC preference instead of
+    // always resetting to off.
+    if (isNewVideo) state.enabled = message.ccEnabled === true;
     scheduleAttach(state.videoId, state.generation);
     if (state.toggle) state.toggle.setAttribute("aria-pressed", String(state.enabled));
     updateNativeCaptionVisibility();

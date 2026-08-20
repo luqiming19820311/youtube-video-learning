@@ -30,6 +30,7 @@ let ytdDigestButton = null;
 let digestButtonObserver = null;
 let digestButtonReconcileTimer = null;
 let digestButtonResizeListenerAdded = false;
+const voicePlaybackController = YTD_VOICE_PLAYBACK.createController();
 
 // ============================================================
 // INITIALIZATION
@@ -145,6 +146,54 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       currentTime: video ? Math.floor(video.currentTime) : 0,
       paused: video ? video.paused : true,
     });
+    return false;
+  }
+
+  if (message.action === "getVoicePlaybackState") {
+    const player = document.querySelector("#movie_player");
+    const adShowing = !!player?.classList?.contains("ad-showing")
+      || !!document.querySelector(".ad-showing, .ad-interrupting");
+    sendResponse({
+      ...voicePlaybackController.snapshot(),
+      adShowing,
+    });
+    return false;
+  }
+
+  if (message.action === "setVoiceDucking") {
+    const success = message.enabled
+      ? voicePlaybackController.enableDucking(message.factor)
+      : true;
+    if (!message.enabled) {
+      voicePlaybackController.restore().then(() => sendResponse({ success: true }));
+      return true;
+    }
+    sendResponse({ success });
+    return false;
+  }
+
+  if (message.action === "pauseForVoiceCatchUp") {
+    sendResponse({ success: voicePlaybackController.pauseForCatchUp() });
+    return false;
+  }
+
+  if (message.action === "resumeAfterVoiceCatchUp") {
+    voicePlaybackController.resumeAfterCatchUp().then((success) => sendResponse({ success }));
+    return true;
+  }
+
+  if (message.action === "restoreVoicePlayback") {
+    voicePlaybackController.restore().then((success) => sendResponse({ success }));
+    return true;
+  }
+
+  if (message.action === "pauseVideo") {
+    // The user switched away from the video tab: pause playback and mark the
+    // pause as user-owned so Voice cleanup never auto-resumes it.
+    const video = document.querySelector("video.html5-main-video");
+    if (video && !video.paused) video.pause();
+    voicePlaybackController.clearCatchUpPause();
+    sendResponse({ success: true, paused: video ? video.paused : false });
     return false;
   }
 

@@ -8,6 +8,10 @@ const contentScript = fs.readFileSync(
   path.resolve(__dirname, "..", "content.js"),
   "utf8",
 );
+const voicePlaybackScript = fs.readFileSync(
+  path.resolve(__dirname, "..", "voice-playback.js"),
+  "utf8",
+);
 
 class FakeElement {
   constructor({
@@ -179,6 +183,7 @@ function createHarness() {
     clearInterval() {},
   });
 
+  vm.runInContext(voicePlaybackScript, context);
   vm.runInContext(contentScript, context);
 
   return {

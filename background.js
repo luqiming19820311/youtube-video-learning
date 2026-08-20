@@ -14,7 +14,10 @@
 // Import safe defaults and validation helpers. Secret keys live in
 // chrome.storage.local and are never part of the extension source.
 importScripts("ai-providers.js");
+importScripts("tts-settings.js");
 importScripts("settings.js");
+importScripts("voice-sync.js");
+importScripts("mimo-tts.js");
 
 const DEBUG = false;
 const AI_PROVIDER_IDLE_TIMEOUT_MS = 50_000;
@@ -35,6 +38,33 @@ chrome.storage.local
 async function getSettings() {
   const stored = await chrome.storage.local.get(YTD_SETTINGS.STORAGE_KEY);
   return YTD_SETTINGS.normalize(stored[YTD_SETTINGS.STORAGE_KEY]);
+}
+
+const voiceTranslationControllers = new Map();
+
+async function restoreVoicePlaybackInYouTubeTabs() {
+  const tabs = await chrome.tabs.query({ url: "https://www.youtube.com/*" });
+  await Promise.allSettled(
+    tabs.map((tab) =>
+      chrome.tabs.sendMessage(tab.id, { action: "restoreVoicePlayback" }),
+    ),
+  );
+}
+
+if (chrome.runtime.onConnect?.addListener) {
+  const handleTtsPort = YTD_MIMO_TTS.createPortHandler({
+    async getConfig() {
+      return (await getSettings()).voice.mimo;
+    },
+    cleanup: restoreVoicePlaybackInYouTubeTabs,
+  });
+  chrome.runtime.onConnect.addListener((port) => {
+    if (port?.name === "ytd-voice-lifecycle") {
+      port.onDisconnect.addListener(() => void restoreVoicePlaybackInYouTubeTabs());
+      return;
+    }
+    handleTtsPort(port);
+  });
 }
 
 function activeProviderConfig(settings) {
@@ -140,6 +170,7 @@ async function requestAiCompletion({
   maxTokens,
   temperature,
   responseFormat,
+  signal,
 }) {
   const settings = await getSettings();
   const provider = YTD_AI_PROVIDERS.getProvider(settings.activeProvider);
@@ -189,6 +220,9 @@ async function requestAiCompletion({
       AI_PROVIDER_IDLE_TIMEOUT_MS,
     );
   };
+  const abortFromCaller = () => abortForTimeout("cancelled");
+  if (signal?.aborted) abortFromCaller();
+  else signal?.addEventListener?.("abort", abortFromCaller, { once: true });
 
   hardTimeoutId = setTimeout(
     () => abortForTimeout("hard"),
@@ -206,17 +240,20 @@ async function requestAiCompletion({
     // may then send blank-line body chunks while a non-streaming request queues.
     resetIdleTimeout();
 
-    const data = await readBoundedAiResponse(response, resetIdleTimeout);
+    // Check ok BEFORE parsing: gateways and proxies answer 4xx/5xx with an
+    // empty body or an HTML page, and a blind JSON.parse there threw a
+    // SyntaxError that dropped the status code (breaking the 401/429
+    // friendly-error mapping below in the message handlers).
     if (!response.ok) {
-      const errorData = data && typeof data === "object" ? data : {};
+      const detail = await readProviderErrorMessage(response);
       const error = new Error(
-        errorData.error?.message ||
-          errorData.message ||
-          `${provider.name} error: ${response.status}`,
+        detail || `${provider.name} error: ${response.status}`,
       );
       error.status = response.status;
       throw error;
     }
+
+    const data = await readBoundedAiResponse(response, resetIdleTimeout);
 
     const text = YTD_AI_PROVIDERS.parseChatResponse(provider, data);
     if (typeof text !== "string" || !text.trim()) {
@@ -241,10 +278,16 @@ async function requestAiCompletion({
       timeoutError.code = "AI_HARD_TIMEOUT";
       throw timeoutError;
     }
+    if (timeoutKind === "cancelled") {
+      const cancelledError = new Error("AI request was cancelled.");
+      cancelledError.code = "AI_REQUEST_CANCELLED";
+      throw cancelledError;
+    }
     throw error;
   } finally {
     clearTimeout(idleTimeoutId);
     clearTimeout(hardTimeoutId);
+    signal?.removeEventListener?.("abort", abortFromCaller);
   }
 }
 
@@ -292,6 +335,29 @@ async function readBoundedAiResponse(response, onActivity) {
   const data = await response.json();
   onActivity();
   return data;
+}
+
+/**
+ * Reads an error response body without assuming JSON. Providers behind CDNs
+ * and custom endpoints answer 4xx/5xx with empty bodies or HTML error pages;
+ * this keeps a short, readable detail instead of letting JSON.parse throw.
+ */
+async function readProviderErrorMessage(response) {
+  try {
+    const text = (await response.text()).trim();
+    if (!text) return "";
+    try {
+      const payload = JSON.parse(text);
+      if (payload && typeof payload === "object") {
+        return payload.error?.message || payload.message || "";
+      }
+    } catch (_error) {
+      // Not JSON — fall through to a plain snippet.
+    }
+    return text.slice(0, 200);
+  } catch (_error) {
+    return "";
+  }
 }
 
 // ============================================================
@@ -451,16 +517,42 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message.action === "cancelVoiceTranslation") {
+    for (const [requestId, entry] of voiceTranslationControllers) {
+      if (entry.generation !== message.generation ||
+          entry.sessionId !== message.voiceSessionId) continue;
+      entry.controller.abort();
+      voiceTranslationControllers.delete(requestId);
+    }
+    sendResponse({ success: true });
+    return false;
+  }
+
   // Translation: send content to DeepSeek.
   if (message.action === "translateContent") {
+    const voiceRequestId = typeof message.voiceRequestId === "string"
+      ? message.voiceRequestId
+      : "";
+    const voiceController = voiceRequestId ? new AbortController() : null;
+    if (voiceController) {
+      voiceTranslationControllers.set(voiceRequestId, {
+        controller: voiceController,
+        generation: message.voiceGeneration,
+        sessionId: message.voiceSessionId,
+      });
+    }
     handleTranslateContent(
       message.content,
       message.contentType,
       message.targetLanguage,
       message.videoTitle,
+      voiceController?.signal,
     )
       .then(sendResponse)
-      .catch((err) => sendResponse({ success: false, error: err.message }));
+      .catch((err) => sendResponse({ success: false, error: err.message }))
+      .finally(() => {
+        if (voiceRequestId) voiceTranslationControllers.delete(voiceRequestId);
+      });
     return true;
   }
 
@@ -486,6 +578,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }),
       )
       .catch((error) => sendResponse({ error: error.message }));
+    return true;
+  }
+
+  if (message.action === "setPlayerCcEnabled") {
+    // Content scripts cannot read chrome.storage (TRUSTED_CONTEXTS), so the
+    // player CC toggle routes its persistence through the service worker.
+    chrome.storage.local
+      .set({ ytd_player_cc_enabled: message.enabled === true })
+      .then(() => sendResponse({ success: true }))
+      .catch((error) => sendResponse({ success: false, error: error.message }));
     return true;
   }
 
@@ -873,7 +975,7 @@ async function pollTranscriptJob(jobId, supadataApiKey) {
               language: chunk.lang || data.lang || null,
             });
             transcriptTextPlain += cleanText + " ";
-            transcriptTextTimestamped += `[${timestamp}] ${chunk.text}\n`;
+            transcriptTextTimestamped += `[${timestamp}] ${cleanText}\n`;
           }
         }
       }
@@ -1211,6 +1313,11 @@ async function handleSaveNote(
       transcript = transcriptResult.transcript;
     }
 
+    // A cached-but-empty transcript used to crash the line matching below.
+    if (!Array.isArray(transcript) || transcript.length === 0) {
+      return { success: false, error: "Could not fetch transcript" };
+    }
+
     // Find the transcript line at the current timestamp
     // Look for the line that contains this timestamp (or the closest one before)
     let matchedLine = null;
@@ -1258,11 +1365,14 @@ async function handleSaveNote(
     }
 
     if (!matchedLine) {
-      // Fallback: use the last line if timestamp is beyond transcript
-      matchedLine = transcript[transcript.length - 1];
-      matchedIndex = transcript.length - 1;
+      // Fallback: the timestamp sits outside the transcript range. Captions
+      // often start minutes into a video (silent intros), so an early
+      // timestamp must clamp to the FIRST line — the last-line fallback only
+      // fits a note taken past the final caption.
+      const beforeFirstCaption = safeTimestamp < transcript[0].start;
+      matchedIndex = beforeFirstCaption ? 0 : transcript.length - 1;
+      matchedLine = transcript[matchedIndex];
 
-      // Get buffer sentence (only before, since we're at the end)
       const beforeLines = [];
       for (let j = 1; j <= 2 && matchedIndex - j >= 0; j++) {
         beforeLines.unshift(transcript[matchedIndex - j].text);
@@ -1271,8 +1381,17 @@ async function handleSaveNote(
         beforeLine = beforeLines.join(" ");
       }
 
+      const afterLines = [];
+      for (let j = 1; j <= 4 && matchedIndex + j < transcript.length; j++) {
+        afterLines.push(transcript[matchedIndex + j].text);
+      }
+      if (afterLines.length > 0) {
+        afterLine = afterLines.join(" ");
+      }
+
       const startIdx = Math.max(0, matchedIndex - 8);
-      for (let j = startIdx; j <= matchedIndex; j++) {
+      const endIdx = Math.min(transcript.length - 1, matchedIndex + 12);
+      for (let j = startIdx; j <= endIdx; j++) {
         contextLines.push(transcript[j].text);
       }
     }
@@ -1536,8 +1655,8 @@ async function getTranslationBaseRules(targetLanguage) {
 
 function validateTranscriptBatchRequest(content) {
   const segments = content?.segments;
-  if (!Array.isArray(segments) || segments.length < 1 || segments.length > 4) {
-    throw new Error("Transcript translation requires 1 to 4 segments");
+  if (!Array.isArray(segments) || segments.length < 1 || segments.length > 6) {
+    throw new Error("Transcript translation requires 1 to 6 segments");
   }
 
   const seenIds = new Set();
@@ -1616,6 +1735,7 @@ async function handleTranslateContent(
   contentType,
   targetLanguage,
   videoTitle,
+  signal,
 ) {
   try {
     if (targetLanguage !== "zh") {
@@ -1653,6 +1773,7 @@ async function handleTranslateContent(
       temperature: 0.2,
       maxTokens: 1536,
       responseFormat: { type: "json_object" },
+      signal,
     };
     let result = await callAiTranslation(
       systemPrompt,
@@ -1666,6 +1787,7 @@ async function handleTranslateContent(
       result = await callAiTranslation(systemPrompt, userContent, {
         temperature: translationOptions.temperature,
         maxTokens: translationOptions.maxTokens,
+        signal,
       });
     }
     if (!result.success) return result;
@@ -1740,13 +1862,14 @@ async function handlePlayerCaptionBatch(videoId, content, videoTitle) {
 async function callAiTranslation(
   systemPrompt,
   userContent,
-  { temperature = 0.3, maxTokens = 8192, responseFormat } = {},
+  { temperature = 0.3, maxTokens = 8192, responseFormat, signal } = {},
 ) {
   try {
     const { text } = await requestAiCompletion({
       temperature,
       maxTokens,
       responseFormat,
+      signal,
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userContent },

@@ -29,11 +29,16 @@ let isAnalysisLoading = false; // Track if analysis is in progress
 let youtubeTabId = null; // Store the YouTube tab ID for reliable messaging
 let errorAction = null;
 let transcriptTabsController = null;
+let voiceController = null;
+let voiceLifecyclePort = null;
 
 // --- Translation state ---
 // The public transcript control intentionally supports only the original
 // subtitles, Chinese, and an aligned source + Chinese view.
 let currentTranscriptMode = "original";
+const TRANSCRIPT_MODE_STORAGE_KEY = "ytd_transcript_mode";
+const PLAYER_CC_STORAGE_KEY = "ytd_player_cc_enabled";
+let playerCcEnabled = false;
 let translationGeneration = 0; // Invalidates responses from older UI modes/videos.
 let translationWorkCount = 0;
 let transcriptScrollObserver = null;
@@ -152,6 +157,7 @@ function groupTranscriptEntries(entries, limits = TRANSCRIPT_SEGMENT_LIMITS) {
     if (!text) return;
     const start = Number.isFinite(Number(entry.start)) ? Number(entry.start) : 0;
     const duration = Math.max(0, Number(entry.duration) || 0);
+    const entryEnd = start + Math.max(duration, 1);
     const sentenceParts =
       text.match(/[^.!?;:,。！？；：，]+(?:[.!?;:,。！？；：，]+["')\]”’）】」』]*|$)/g) ||
       [text];
@@ -166,6 +172,7 @@ function groupTranscriptEntries(entries, limits = TRANSCRIPT_SEGMENT_LIMITS) {
         pieces.push({
           text: part,
           start: start + duration * ratio,
+          end: entryEnd,
           semanticEnd:
             /[.!?。！？]["')\]”’）】」』]*$/.test(part) ||
             oversizedParts.length > 1,
@@ -187,6 +194,7 @@ function groupTranscriptEntries(entries, limits = TRANSCRIPT_SEGMENT_LIMITS) {
     grouped.push({
       id: `segment-${index}-${Math.round(current.start * 1000)}`,
       start: current.start,
+      end: current.end,
       text,
       texts: [text],
     });
@@ -194,8 +202,9 @@ function groupTranscriptEntries(entries, limits = TRANSCRIPT_SEGMENT_LIMITS) {
   };
 
   pieces.forEach((piece) => {
-    if (!current) current = { start: piece.start, text: "" };
+    if (!current) current = { start: piece.start, end: piece.end, text: "" };
     current.text = normalizeCaptionText(`${current.text} ${piece.text}`);
+    current.end = Math.max(current.end, piece.end);
     const elapsed = Math.max(0, piece.start - current.start);
     const comfortablySized = current.text.length >= limits.minChars;
     const reachedIdeal = current.text.length >= limits.idealChars;
@@ -231,13 +240,63 @@ function groupTranscriptEntries(entries, limits = TRANSCRIPT_SEGMENT_LIMITS) {
 // ============================================================
 
 document.addEventListener("DOMContentLoaded", async () => {
+  // If the panel's scripts ever execute twice in one document, a second
+  // controller pair would fight over the same buttons (double narration,
+  // toggles flipping back). One panel per document, ever.
+  if (globalThis.__YTD_VOICE_PANEL_BOOTED__) return;
+  globalThis.__YTD_VOICE_PANEL_BOOTED__ = true;
   transcriptTabsController = YTD_TRANSCRIPT_TOGGLE.createController({
     document,
     storage: chrome.storage.local,
   });
+  voiceController = YTD_VOICE_CONTROLLER.createController({
+    button: document.getElementById("voiceToggle"),
+    storage: chrome.storage.local,
+    runtime: chrome.runtime,
+    isTranscriptEnabled: () => transcriptTabsController?.isEnabled() === true,
+    relay: async (payload) => {
+      const result = await chrome.runtime.sendMessage({
+        action: "relayToContent",
+        payload,
+      });
+      if (!result?.success) throw new Error(result?.error || "YouTube player is unavailable.");
+      return result.response;
+    },
+    onStatus: updateVoiceStatus,
+  });
+  voiceLifecyclePort = chrome.runtime.connect({ name: "ytd-voice-lifecycle" });
   setupEventListeners();
-  await transcriptTabsController.initialize();
+  await Promise.all([
+    transcriptTabsController.initialize(),
+    voiceController.initialize(),
+  ]);
   await evictOldCacheEntries(20);
+
+  // The language mode is a user preference: restore it across panel rebuilds
+  // so 中文/双语 survives tab switches and panel reopen.
+  try {
+    const storedMode = await chrome.storage.local.get(TRANSCRIPT_MODE_STORAGE_KEY);
+    const mode = storedMode[TRANSCRIPT_MODE_STORAGE_KEY];
+    if (["original", "zh", "bilingual"].includes(mode)) {
+      currentTranscriptMode = mode;
+    }
+  } catch (_error) {
+    // Keep the default mode when storage is unavailable.
+  }
+  setTranscriptModeButtons(currentTranscriptMode);
+  try {
+    const storedCc = await chrome.storage.local.get(PLAYER_CC_STORAGE_KEY);
+    playerCcEnabled = storedCc[PLAYER_CC_STORAGE_KEY] === true;
+  } catch (_error) {
+    playerCcEnabled = false;
+  }
+  // The player CC button lives in the content script; keep our copy of the
+  // preference current so every caption sync re-applies it.
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === "local" && changes[PLAYER_CC_STORAGE_KEY]) {
+      playerCcEnabled = changes[PLAYER_CC_STORAGE_KEY].newValue === true;
+    }
+  });
 
   if (transcriptTabsController.isEnabled()) {
     await activateTranscriptFeature();
@@ -248,6 +307,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
 async function activateTranscriptFeature() {
   if (!transcriptTabsController?.isEnabled()) return;
+  voiceController?.refreshAvailability();
   const configStatus = await chrome.runtime.sendMessage({
     action: "checkConfig",
   });
@@ -263,6 +323,7 @@ async function activateTranscriptFeature() {
 
 function deactivateTranscriptFeature() {
   clearTimeout(navigationRefreshTimer);
+  clearTimeout(voiceCachePersistTimer);
   translationGeneration += 1;
   activeTranslationQueue = null;
   setTranslatingSpinner(false);
@@ -271,8 +332,23 @@ function deactivateTranscriptFeature() {
   stopPlaybackTracking();
   document.getElementById("explainTooltip")?.remove();
   clearPlayerCaptionOverlay();
+  voiceController?.refreshAvailability();
+  void voiceController?.clearTranscript();
   showState("disabled");
 }
+
+function updateVoiceStatus(message, state = "info") {
+  const element = document.getElementById("voiceStatus");
+  if (!element) return;
+  element.textContent = message || "";
+  element.dataset.state = state;
+  element.hidden = !message;
+}
+
+window.addEventListener?.("pagehide", () => {
+  void voiceController?.stop();
+  voiceLifecyclePort?.disconnect();
+});
 
 // Listen for messages from the Digest button on YouTube page
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -346,9 +422,20 @@ function panelIsShowingResults() {
  * Reacts to the URL now in front of the panel: close on non-YouTube,
  * refresh the digest when the video changed.
  */
+/**
+ * Pauses the video in the tab this panel was tracking. Called when the user
+ * switches to another tab or page so the video keeps playing unattended —
+ * and so returning later doesn't restart narration over live video audio.
+ */
+function pauseTrackedVideo() {
+  if (!youtubeTabId) return;
+  chrome.tabs.sendMessage(youtubeTabId, { action: "pauseVideo" }).catch(() => {});
+}
+
 function handleFrontTabUrl(url) {
   if (!(url || "").startsWith("https://www.youtube.com")) {
     // Panel is a YouTube-only tool — remove itself from non-YouTube tabs.
+    pauseTrackedVideo();
     window.close();
     return;
   }
@@ -373,6 +460,10 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 // tab being opened (including ones opened by clicking links in other apps).
 chrome.tabs.onActivated.addListener(async ({ tabId, windowId }) => {
   if (panelWindowId !== null && windowId !== panelWindowId) return;
+  // The previously watched tab should not keep playing in the background.
+  if (youtubeTabId !== null && tabId !== youtubeTabId) {
+    pauseTrackedVideo();
+  }
   try {
     const tab = await chrome.tabs.get(tabId);
     // Brand-new tabs may not have committed their URL yet — fall back to
@@ -380,6 +471,21 @@ chrome.tabs.onActivated.addListener(async ({ tabId, windowId }) => {
     handleFrontTabUrl(tab.url || tab.pendingUrl || "");
   } catch (e) {
     // Tab closed before we could read it — nothing to do.
+  }
+});
+
+// Switching to ANOTHER browser window keeps this tab "visible" (no
+// visibilitychange, and tabs.onActivated bails for foreign windows), so the
+// video would keep playing under Voice narration. Window-focus changes are
+// the one signal that catches exactly this case.
+chrome.windows.onFocusChanged?.addListener?.((windowId) => {
+  // NONE means Chrome lost OS focus entirely (another app or browser took
+  // it) — the video must pause there too, or its audio keeps mixing with
+  // narration while the user is elsewhere. Any other foreign window is the
+  // same user-intent: away from the video.
+  if (windowId === chrome.windows.WINDOW_ID_NONE
+      || (panelWindowId !== null && windowId !== panelWindowId)) {
+    pauseTrackedVideo();
   }
 });
 
@@ -503,6 +609,7 @@ async function checkCurrentTab() {
     debugLog("[YouTube Digest Panel] Found tab:", tab?.id, tab?.url);
 
     if (!tab?.url) {
+      void voiceController?.clearTranscript();
       showState("welcome");
       return;
     }
@@ -539,10 +646,12 @@ async function checkCurrentTab() {
 
       startDigest(videoId, tab.url);
     } else {
+      void voiceController?.clearTranscript();
       showState("welcome");
     }
   } catch (error) {
     console.error("Tab check error:", error);
+    void voiceController?.clearTranscript();
     showState("welcome");
   }
 }
@@ -581,6 +690,7 @@ async function startDigest(videoId, videoUrl) {
   if (!requestToken) return;
   // Check if we already have this video loaded in memory
   if (videoId === currentVideoId && currentAnalysis) {
+    syncVoiceTranscript(videoId);
     showState("results");
     await syncPlayerCaptionOverlay();
     return;
@@ -588,6 +698,7 @@ async function startDigest(videoId, videoUrl) {
 
   // Every video change invalidates observer work and in-flight translations.
   if (videoId !== currentVideoId) {
+    await voiceController?.clearTranscript();
     translationGeneration += 1;
     if (transcriptScrollObserver) transcriptScrollObserver.disconnect();
     transcriptScrollObserver = null;
@@ -607,6 +718,7 @@ async function startDigest(videoId, videoUrl) {
     currentTranscriptTimestamped = cached.transcriptTimestamped;
     currentTranscriptLanguage = cached.transcriptLanguage || null;
     isAnalysisLoading = false;
+    syncVoiceTranscript(videoId);
 
     // Restore semantic-segment translations from persistent storage.
     if (cached.paragraphCache) {
@@ -689,6 +801,7 @@ async function startDigest(videoId, videoUrl) {
   currentTranscriptText = transcriptResult.transcriptText;
   currentTranscriptTimestamped = transcriptResult.transcriptTextTimestamped;
   currentTranscriptLanguage = transcriptResult.language || null;
+  syncVoiceTranscript(videoId);
 
   // Render transcript immediately (no LLM needed)
   renderTranscript();
@@ -1106,6 +1219,8 @@ async function seekTo(seconds) {
     debugLog("[YouTube Digest Panel] seekTo aborted - no seconds value");
     return;
   }
+
+  await voiceController?.seekTo(Number(seconds));
 
   const payload = {
     action: "seekTo",
@@ -1817,12 +1932,69 @@ function transcriptTranslationCacheKey(segment) {
   return `${currentVideoId}:zh:semantic:${segment.id}`;
 }
 
+/**
+ * Hands Voice the panel's semantic segments plus the shared translation
+ * cache. Voice speaks whatever the bilingual view has already translated
+ * and only sends AI requests for the gaps.
+ */
+function syncVoiceTranscript(videoId) {
+  voiceController?.setTranscript({
+    videoId,
+    videoTitle: currentVideoTitle,
+    language: currentTranscriptLanguage,
+    segments: getActiveTranscriptSegments(),
+    translationCache: transcriptParagraphCache,
+    onTranslationsAdded: handleVoiceTranslationsAdded,
+  });
+}
+
+let voiceCachePersistTimer = null;
+
+/**
+ * Fills visible transcript rows when Voice translations land in the shared
+ * cache, then persists the cache (debounced) so the view and future sessions
+ * keep the AI results Voice paid for.
+ */
+function handleVoiceTranslationsAdded() {
+  if (currentTranscriptMode !== "original") {
+    const segmentsById = new Map(
+      getActiveTranscriptSegments().map((segment) => [segment.id, segment]),
+    );
+    document
+      .querySelectorAll(".transcript-entry[data-segment-id]")
+      .forEach((row) => {
+        const segment = segmentsById.get(row.dataset.segmentId);
+        if (!segment || row.classList.contains("translated")) return;
+        const cached = transcriptParagraphCache.get(
+          transcriptTranslationCacheKey(segment),
+        );
+        const copy = row.querySelector(".transcript-copy");
+        if (!cached || !copy) return;
+        copy.outerHTML = renderTranscriptSegmentContent(
+          segment,
+          currentTranscriptMode,
+          cached,
+          "",
+        );
+        row.classList.add("translated");
+        row.classList.remove("translating", "translation-failed");
+      });
+    void syncPlayerCaptionOverlay();
+  }
+  clearTimeout(voiceCachePersistTimer);
+  voiceCachePersistTimer = setTimeout(() => {
+    voiceCachePersistTimer = null;
+    void updateCache();
+  }, 1500);
+}
+
 function buildPlayerCaptionState(
   videoId,
   videoTitle,
   mode,
   transcript,
   translationCache,
+  ccEnabled = false,
 ) {
   const segments = groupTranscriptEntries(transcript || []);
   const translations = {};
@@ -1837,6 +2009,7 @@ function buildPlayerCaptionState(
     videoId,
     videoTitle,
     mode,
+    ccEnabled: ccEnabled === true,
     segments,
     translations,
   };
@@ -1858,6 +2031,7 @@ async function syncPlayerCaptionOverlay() {
         currentTranscriptMode,
         currentTranscript,
         transcriptParagraphCache,
+        playerCcEnabled,
       ),
     );
   } catch (error) {
@@ -1886,6 +2060,11 @@ async function handleTranscriptModeChange(mode) {
   if (mode === currentTranscriptMode) return;
 
   currentTranscriptMode = mode;
+  try {
+    void chrome.storage.local.set({ [TRANSCRIPT_MODE_STORAGE_KEY]: mode });
+  } catch (_error) {
+    // Preference persistence is best-effort.
+  }
   translationGeneration += 1;
   translationWorkCount = 0;
   setTranslatingSpinner(false);

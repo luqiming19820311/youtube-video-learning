@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "YouTube Digest",
-  "version": "1.7.0",
+  "version": "1.8.0",
   "minimum_chrome_version": "116",
   "description": "Turn YouTube videos into learning resources with transcripts, bilingual translation, AI overviews, and notes.",
   "permissions": ["sidePanel", "storage", "tabs", "scripting"],
@@ -17,6 +17,7 @@
     "https://generativelanguage.googleapis.com/*",
     "https://open.bigmodel.cn/*",
     "https://token-plan-cn.xiaomimimo.com/*",
+    "https://api.xiaomimimo.com/*",
     "https://api.openai.com/*",
     "https://*/*",
     "http://*/*",
@@ -44,7 +45,7 @@
   "content_scripts": [
     {
       "matches": ["https://www.youtube.com/*"],
-      "js": ["player-captions.js", "content.js"],
+      "js": ["player-captions.js", "voice-playback.js", "content.js"],
       "run_at": "document_idle"
     }
   ],

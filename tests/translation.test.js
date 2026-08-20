@@ -318,7 +318,25 @@ test("background rejects unsupported language fallthrough and malformed batches"
   assert.match(source, /targetLanguage !== "zh"/);
   assert.throws(
     () => validateTranscriptBatchRequest({ segments: [] }),
-    /1 to 4 segments/,
+    /1 to 6 segments/,
+  );
+  assert.equal(
+    validateTranscriptBatchRequest({
+      segments: Array.from({ length: 6 }, (_, index) => ({
+        id: `segment-${index}`,
+        text: `source ${index}`,
+      })),
+    }).length,
+    6,
+  );
+  assert.throws(
+    () => validateTranscriptBatchRequest({
+      segments: Array.from({ length: 7 }, (_, index) => ({
+        id: `segment-${index}`,
+        text: `source ${index}`,
+      })),
+    }),
+    /1 to 6 segments/,
   );
   assert.throws(
     () =>
@@ -429,6 +447,28 @@ test("provider idle silence aborts with a distinct Retry-able error", async () =
   assert.equal(result.code, "AI_IDLE_TIMEOUT");
   assert.match(result.error, /inactive for 50 seconds.*Retry/i);
   assert.equal(timers.activeCount(120_000), 0);
+});
+
+test("Voice can externally abort an in-flight translation request", async () => {
+  const helpers = loadBackgroundHelpers({
+    fetchImpl: async (_url, { signal }) => new Promise((_resolve, reject) => {
+      signal.addEventListener("abort", () => {
+        const error = new Error("aborted");
+        error.name = "AbortError";
+        reject(error);
+      }, { once: true });
+    }),
+  });
+  const controller = new AbortController();
+  const request = helpers.callAiTranslation("Translate.", "Hello.", {
+    signal: controller.signal,
+  });
+  await nextTurn();
+  controller.abort();
+  const result = await request;
+
+  assert.equal(result.success, false);
+  assert.equal(result.code, "AI_REQUEST_CANCELLED");
 });
 
 test("blank-line keepalives cannot evade the provider hard cap", async () => {

@@ -93,3 +93,24 @@ test("normalizes multi-provider settings and migrates the legacy DeepSeek fields
   assert.equal(normalized.providers.zhipu.apiKey, "zhipu-key");
   assert.equal(normalized.providers.deepseek.apiKey, "");
 });
+
+test("preserves an independent normalized Voice configuration", () => {
+  const normalized = settings.normalize({
+    activeProvider: "deepseek",
+    voice: {
+      activeProvider: "mimo",
+      mimo: {
+        accessMode: "tokenPlan",
+        apiKey: "voice-secret",
+        voice: "白桦",
+        verifiedAt: 456,
+      },
+    },
+  });
+
+  assert.equal(normalized.voice.activeProvider, "mimo");
+  assert.equal(normalized.voice.mimo.accessMode, "tokenPlan");
+  assert.equal(normalized.voice.mimo.apiKey, "voice-secret");
+  assert.equal(normalized.voice.mimo.voice, "白桦");
+  assert.equal(normalized.voice.mimo.verifiedAt, 456);
+});

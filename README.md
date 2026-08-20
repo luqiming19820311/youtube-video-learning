@@ -6,6 +6,7 @@ Turn every YouTube video into a resource for deep learning. YouTube Digest bring
 
 - Turn captions into a readable, searchable learning resource.
 - Learn languages with the original transcript, a Simplified Chinese translation, or an aligned bilingual view.
+- Listen to synchronized Chinese narration through an installed system voice or Xiaomi MiMo streaming TTS.
 - Build understanding with an AI overview, chapters, key quotes, and selected-text explanations.
 - Navigate long videos by clicking timestamps in the transcript, overview, or notes.
 - Save polished timestamped notes for later study.
@@ -87,14 +88,24 @@ YouTube Digest lets you select one provider and model globally for overviews, ex
 
 Keys and settings are stored in Chrome's local extension storage on your device. Release builds do not include or use `config.js`.
 
+### Set up Chinese Voice playback
+
+Voice is optional and always starts off when the side panel opens. Open **Settings**, then use **TTS settings** to choose one of these services:
+
+- **System local** uses a Chinese voice installed in Chrome or your operating system. Choose a listed voice and play the test sample. No TTS API key is sent.
+- **Xiaomi MiMo** uses the low-latency `mimo-v2.5-tts` streaming model. Choose Standard API or Token Plan, enter its endpoint and credential, choose one of the built-in Chinese voices, then select **Test and select MiMo**. MiMo cannot be saved as the active TTS service until the fixed Chinese test sample plays completely.
+
+MiMo configuration changes invalidate the previous test. Standard API defaults to `https://api.xiaomimimo.com/v1`; Token Plan defaults to the China OpenAI-compatible endpoint. Check the [official Xiaomi MiMo speech synthesis documentation](https://mimo.mi.com/docs/usage-guide/audio/speech-synthesis-v2.5) for account, availability, and pricing details.
+
 ## Use YouTube Digest
 
 1. Open a standard YouTube watch page with captions.
 2. Click the YouTube Digest extension icon to open the side panel.
 3. Read the timestamped transcript, or choose **Original**, **中文**, or **双语**.
-4. Open **Overview** when you want AI-generated chapters and key quotes.
-5. Select transcript text when you want an AI explanation.
-6. Save a note from the player or a key quote, then revisit it from **Notes**.
+4. Turn on **Voice** to hear the subtitle content narrated in Chinese. Transcript must remain on.
+5. Open **Overview** when you want AI-generated chapters and key quotes.
+6. Select transcript text when you want an AI explanation.
+7. Save a note from the player or a key quote, then revisit it from **Notes**.
 
 ## What works today
 
@@ -102,6 +113,8 @@ Keys and settings are stored in Chrome's local extension storage on your device.
 - Standard `youtube.com/watch` video pages.
 - Native subtitle tracks returned by Supadata. YouTube Digest prefers English when available, but may show another native language.
 - Original, Simplified Chinese, and aligned bilingual transcript views.
+- Timeline-synchronized Chinese Voice playback with local system speech or Xiaomi MiMo streaming TTS.
+- Adaptive `0.85x` to `1.8x` narration speed, audio ducking, and automatic video pause when narration falls two segments behind.
 - AI overviews, selected-text explanations, translation, and automatic note polishing.
 - Local notes and a local cache for recent transcript and digest results.
 - The selected provider and model for all published AI features. DeepSeek V4 Flash remains the default.
@@ -165,7 +178,8 @@ YouTube Digest makes provider requests directly from the extension:
 1. It sends a canonical YouTube watch URL to Supadata to request the native transcript.
 2. It sends the transcript and relevant video metadata to DeepSeek when you request AI features.
 3. Focused features send only the content they need, such as selected text with context or small transcript batches for translation.
-4. It stores keys, settings, notes, and recent cache entries locally in Chrome.
+4. Voice sends only each Chinese narration segment and a speaking-style instruction to Xiaomi MiMo when MiMo TTS is selected. System-local speech stays on the device. Streamed PCM audio is played in memory and is not cached.
+5. It stores keys, settings, notes, and recent cache entries locally in Chrome.
 
 There is no YouTube Digest account system, advertising, analytics, or telemetry. Supadata and DeepSeek still receive data under their own terms and privacy policies. See [PRIVACY.md](PRIVACY.md) for details.
 
@@ -208,6 +222,13 @@ YouTube Digest will not fall back to generated transcription.
 - If you adapted a local copy for another model, use the Settings customization prompt again and ask your coding agent to inspect that local implementation.
 
 Never share API keys, private transcripts, or personal notes in chats, screenshots, or logs.
+
+### Chinese Voice does not play
+
+- Turn on **Transcript** first. Voice is disabled without a loaded transcript and resets to off each time the side panel opens.
+- For System local, return to **TTS settings** and test another installed Chinese voice.
+- For Xiaomi MiMo, recheck the access mode, endpoint, credential, model, and voice, then play the complete test sample again. A `401` or `403` means authentication failed; `429` means the MiMo rate limit was reached.
+- Reload the extension and refresh the YouTube tab after updating this project. Closing Voice or the side panel restores the video's original volume and any Voice-created pause.
 
 ## Checks for coding agents
 

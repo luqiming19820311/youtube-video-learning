@@ -25,10 +25,11 @@ There is no guaranteed response time or bug-bounty program. Please allow a reaso
 Examples include:
 
 - API keys or private content included in source, logs, screenshots, or release ZIPs;
-- requests to network origins outside the documented YouTube, Supadata, and DeepSeek hosts;
+- requests to network origins outside the documented YouTube, Supadata, selected AI-provider, and selected TTS-provider hosts;
 - script or HTML injection through transcript, metadata, service errors, or model output;
 - access to browsing data outside the documented YouTube scope;
 - unintended transmission of notes, transcripts, or credentials;
+- unbounded, malformed, or stale streamed TTS audio reaching playback after cancellation;
 - a dependency or release-workflow compromise; and
 - bypasses of local data deletion or DeepSeek configuration controls.
 
@@ -40,5 +41,8 @@ Examples include:
 - Do not reuse keys from production systems.
 - Revoke keys immediately if a device, browser profile, ZIP, log, or screenshot exposes them.
 - Remember that Chrome local extension storage is not an encrypted password vault.
+- Test Xiaomi MiMo with public sample content before using Voice with sensitive videos, and revoke its credential if authentication details may have been exposed.
+
+The MiMo stream path validates SSE JSON and Base64 PCM, rejects audio above 4 MiB per segment, applies idle and hard timeouts, and discards cancelled generations. It does not write synthesized audio to disk or Chrome storage.
 
 The release tooling uses an explicit file allowlist and scans public files for common credential patterns, but automated checks cannot detect every secret.

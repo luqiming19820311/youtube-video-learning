@@ -32,6 +32,20 @@
             </span>
           </button>
           <button
+            class="transcript-toggle voice-toggle"
+            id="voiceToggle"
+            type="button"
+            role="switch"
+            aria-checked="false"
+            aria-label="Enable Chinese Voice playback"
+            disabled
+          >
+            <span>Voice</span>
+            <span class="toggle-track" aria-hidden="true">
+              <span class="toggle-thumb"></span>
+            </span>
+          </button>
+          <button
             class="settings-btn"
             id="settingsBtn"
             type="button"
@@ -42,6 +56,13 @@
           </button>
         </div>
       </div>
+      <div
+        id="voiceStatus"
+        class="voice-status"
+        role="status"
+        aria-live="polite"
+        hidden
+      ></div>
 
       <!-- Tab navigation -->
       <div class="tabs" id="tabsNav" style="display: none">
@@ -228,8 +249,14 @@
       Follow playback
     </button>
 
+    <script src="ai-providers.js"></script>
+    <script src="tts-settings.js"></script>
     <script src="settings.js"></script>
     <script src="transcript-toggle.js"></script>
+    <script src="voice-sync.js"></script>
+    <script src="voice-translation.js"></script>
+    <script src="tts-stream-player.js"></script>
+    <script src="voice-controller.js"></script>
     <script src="sidepanel.js"></script>
   </body>
 </html>

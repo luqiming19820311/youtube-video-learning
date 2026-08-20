@@ -200,6 +200,60 @@ a {
   color: var(--accent-hover);
 }
 
+.tts-provider-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.tts-provider-list button {
+  display: grid;
+  gap: 4px;
+  padding: 15px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #fff;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.tts-provider-list button span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.tts-provider-list button[aria-selected="true"] {
+  border-color: var(--accent);
+  background: #fdf0eb;
+}
+
+.tts-provider-panel {
+  margin-top: 18px;
+  padding-top: 2px;
+}
+
+.tts-provider-panel button {
+  margin-top: 14px;
+}
+
+.tts-advanced-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+select {
+  width: 100%;
+  padding: 11px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--text);
+  font: inherit;
+}
+
 .model-toolbar {
   display: flex;
   align-items: center;
