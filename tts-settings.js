@@ -4,6 +4,15 @@
   const TOKEN_PLAN_BASE_URL = "https://token-plan-cn.xiaomimimo.com/v1";
   const MIMO_MODEL = "mimo-v2.5-tts";
   const MIMO_VOICES = Object.freeze(["冰糖", "茉莉", "苏打", "白桦"]);
+  // User-facing narration pace (applies to BOTH system and MiMo voices);
+  // defaults to "a bit fast" so the dub keeps up with the speaker.
+  const SPEED_MULTIPLIERS = Object.freeze([0.9, 1, 1.15, 1.3]);
+  const DEFAULT_SPEED_MULTIPLIER = 1.15;
+
+  function normalizeSpeedMultiplier(value) {
+    const parsed = Number(value);
+    return SPEED_MULTIPLIERS.includes(parsed) ? parsed : DEFAULT_SPEED_MULTIPLIER;
+  }
 
   function clampInteger(value, fallback, min, max) {
     const number = Number(value);
@@ -37,6 +46,7 @@
     const verifiedAt = Number(input.mimo?.verifiedAt);
     return {
       activeProvider: input.activeProvider === "mimo" ? "mimo" : "system",
+      speedMultiplier: normalizeSpeedMultiplier(input.speedMultiplier),
       system: {
         voiceURI: typeof input.system?.voiceURI === "string"
           ? input.system.voiceURI.trim().slice(0, 300)
@@ -72,10 +82,13 @@
     TOKEN_PLAN_BASE_URL,
     MIMO_MODEL,
     MIMO_VOICES,
+    SPEED_MULTIPLIERS,
+    DEFAULT_SPEED_MULTIPLIER,
     defaultBaseUrl,
     getAuthHeaders,
     normalize,
     normalizeBaseUrl,
+    normalizeSpeedMultiplier,
   };
   globalThis.YTD_TTS_SETTINGS = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;

@@ -23,6 +23,7 @@ class FakeElement {
 function createTtsHarness() {
   const elements = {
     ttsProviderList: new FakeElement(),
+    voiceSpeedPreference: new FakeElement("1.15"),
     systemTtsPanel: new FakeElement(),
     mimoTtsPanel: new FakeElement(),
     systemVoice: new FakeElement("zh"),
@@ -74,7 +75,6 @@ function createTtsHarness() {
 test("starting a TTS test stops the other engine's playback", async () => {
   const harness = createTtsHarness();
   harness.controller.load(ttsSettings.normalize({}));
-  // load() renders the stored (empty) key into the input; type one in.
   harness.elements.mimoTtsApiKey.value = "key";
 
   harness.elements.testSystemVoiceBtn.click();
@@ -121,4 +121,28 @@ test("MiMo can only activate after a successful verified test", () => {
   );
   assert.equal(ttsOptions.canActivateMimo({ apiKey: "key", verifiedAt: 0 }), false);
   assert.equal(ttsOptions.canActivateMimo({ apiKey: "", verifiedAt: 123 }), false);
+});
+
+test("narration pace is captured without invalidating MiMo verification", async () => {
+  const harness = createTtsHarness();
+  harness.controller.load(ttsSettings.normalize({
+    activeProvider: "mimo",
+    speedMultiplier: 0.9,
+    mimo: { apiKey: "key", verifiedAt: 123 },
+  }));
+  assert.equal(harness.elements.voiceSpeedPreference.value, "0.9");
+
+  harness.elements.voiceSpeedPreference.value = "1.3";
+  harness.elements.voiceSpeedPreference.handlers.get("change")?.();
+  const captured = harness.controller.capture();
+
+  assert.equal(captured.speedMultiplier, 1.3);
+  // Changing pace must not force a MiMo re-test.
+  assert.equal(captured.mimo.verifiedAt, 123);
+  assert.equal(captured.activeProvider, "mimo");
+
+  // Unsupported values fall back to the default pace.
+  harness.elements.voiceSpeedPreference.value = "2";
+  harness.elements.voiceSpeedPreference.handlers.get("change")?.();
+  assert.equal(harness.controller.capture().speedMultiplier, 1.15);
 });

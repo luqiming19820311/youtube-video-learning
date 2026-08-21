@@ -120,7 +120,7 @@ test("Voice starts off and restores playback after stopping", async () => {
   assert.equal(button.getAttribute("aria-checked"), "true");
   assert.ok(relayMessages.some((message) => message.action === "setVoiceDucking" && message.enabled));
   assert.equal(utterances[0].text, "这是第一段中文播报。");
-  assert.ok(utterances[0].rate >= 0.85 && utterances[0].rate <= 1.8);
+  assert.ok(utterances[0].rate >= 1 && utterances[0].rate <= 2);
 
   await controller.stop();
   assert.equal(button.getAttribute("aria-checked"), "false");
@@ -1088,6 +1088,59 @@ test("MiMo starts the current segment and prefetches the next segment", async ()
   await nextTurn();
   assert.equal(queued.length, 2);
   assert.deepEqual(queued.map((item) => item.text), ["第一段。", "第二段。"]);
+});
+
+test("MiMo playback calibrates the measured narration speed", async () => {
+  const button = new FakeButton();
+  let resolvePlayback;
+  const player = {
+    async resume() {},
+    async activate() {},
+    enqueue() {
+      return new Promise((resolve) => { resolvePlayback = resolve; });
+    },
+    async pause() {},
+    async cancelAll() {},
+    async destroy() {},
+  };
+  const controller = voiceController.createController({
+    button,
+    storage: {
+      async get() {
+        return { [settings.STORAGE_KEY]: settings.normalize({
+          voice: { activeProvider: "mimo", mimo: { apiKey: "key", verifiedAt: 1 } },
+        }) };
+      },
+    },
+    runtime: { async sendMessage() { return { success: true }; } },
+    relay: async (message) => message.action === "getVoicePlaybackState"
+      ? { currentTime: 0, playbackRate: 1, paused: false, pausedByVoice: false }
+      : { success: true },
+    streamPlayerFactory: () => player,
+    setIntervalFn: () => 1,
+    clearIntervalFn() {},
+  });
+  await controller.initialize();
+  controller.setTranscript({
+    videoId: "mimo-cal",
+    language: "zh-CN",
+    segments: [{ id: "segment-0-0", start: 0, end: 30, text: "这一段中文共有二十个字用于校准测速。" }],
+  });
+  await controller.start();
+  await nextTurn();
+  await nextTurn();
+
+  const before = controller.getState().voiceCharsPerSecond;
+  // Resolve the MiMo stream after >1s of (simulated) playback — shorter
+  // samples are rejected as unreliable: 18 chars / ~1s → clamped to 8 cps.
+  await new Promise((resolve) => setTimeout(resolve, 1050));
+  resolvePlayback();
+  await nextTurn();
+  await nextTurn();
+
+  const after = controller.getState().voiceCharsPerSecond;
+  assert.ok(after > before, `calibrated ${before} → ${after}`);
+  await controller.stop();
 });
 
 test("seek cancels stale speech and restarts from the target segment", async () => {

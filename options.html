@@ -136,6 +136,14 @@
             </button>
           </div>
 
+          <label for="voiceSpeedPreference" data-i18n="voiceSpeedLabel">Narration speed</label>
+          <select id="voiceSpeedPreference">
+            <option value="0.9" data-i18n="voiceSpeedRelaxed">Relaxed (0.9x)</option>
+            <option value="1" data-i18n="voiceSpeedStandard">Standard (1.0x)</option>
+            <option value="1.15" data-i18n="voiceSpeedFast" selected>A bit fast (1.15x)</option>
+            <option value="1.3" data-i18n="voiceSpeedFaster">Fast (1.3x)</option>
+          </select>
+
           <div id="systemTtsPanel" class="tts-provider-panel">
             <label for="systemVoice" data-i18n="systemVoiceLabel">System Chinese voice</label>
             <select id="systemVoice"></select>
