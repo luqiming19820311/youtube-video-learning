@@ -159,6 +159,8 @@ test("Voice preference persists across panel rebuilds and resumes as waiting", a
   });
   await controller.initialize();
   controller.refreshAvailability();
+  await nextTurn();
+  await nextTurn();
   assert.equal(button.getAttribute("aria-checked"), "true");
   assert.equal(button.dataset.state, "loading");
 
@@ -838,29 +840,28 @@ test("a wedged speech engine is cancelled so narration can continue", async () =
   }
 });
 
-test("only the focused window's panel narrates when two panels run", async () => {
+test("narration is window-independent: an active owner blocks only auto-start", async () => {
   const button = new FakeButton();
   const spoken = [];
-  const relayMessages = [];
+  const store = new Map();
+  const statusMessages = [];
+  const storageEvents = { addListener() {} };
   class FakeUtterance {
     constructor(text) { this.text = text; }
   }
-  const controller = voiceController.createController({
-    button,
+  const makeController = () => voiceController.createController({
+    button: new FakeButton(),
     storage: {
-      async get() {
-        return { [settings.STORAGE_KEY]: settings.normalize({}) };
-      },
+      async get(key) { return store.has(key) ? { [key]: store.get(key) } : {}; },
+      async set(value) { for (const [k, v] of Object.entries(value)) store.set(k, v); },
+      async remove(key) { store.delete(key); },
     },
+    storageEvents,
     isTranscriptEnabled: () => true,
     runtime: { async sendMessage() { return { success: true }; } },
-    relay: async (message) => {
-      relayMessages.push(message.action);
-      if (message.action === "getVoicePlaybackState") {
-        return { currentTime: 0, playbackRate: 1, paused: false, pausedByVoice: false };
-      }
-      return { success: true };
-    },
+    relay: async (message) => message.action === "getVoicePlaybackState"
+      ? { currentTime: 0, playbackRate: 1, paused: false, pausedByVoice: false }
+      : { success: true },
     speechSynthesis: {
       getVoices: () => [{ voiceURI: "zh", lang: "zh-CN" }],
       speak: (utterance) => spoken.push(utterance),
@@ -869,37 +870,57 @@ test("only the focused window's panel narrates when two panels run", async () =>
     SpeechSynthesisUtteranceCtor: FakeUtterance,
     setIntervalFn: () => 1,
     clearIntervalFn() {},
+    onStatus: (message) => statusMessages.push(message),
   });
-  await controller.initialize();
-  controller.setTranscript({
-    videoId: "dual-panel",
+
+  // Panel A starts narrating and owns the global key.
+  const panelA = makeController();
+  await panelA.initialize();
+  panelA.setTranscript({
+    videoId: "owner-demo",
     language: "zh-CN",
-    segments: [
-      { id: "segment-0-0", start: 0, end: 4, text: "窗口A正在播报这一句。" },
-      { id: "segment-1-4000", start: 4, end: 8, text: "回到窗口A后继续这一句。" },
-    ],
+    segments: [{ id: "segment-0-0", start: 0, end: 4, text: "面板A在播报。" }],
   });
-  await controller.start();
+  await panelA.start();
   await nextTurn();
-  assert.deepEqual(spoken.map((utterance) => utterance.text), ["窗口A正在播报这一句。"]);
+  assert.deepEqual(spoken.map((utterance) => utterance.text), ["面板A在播报。"]);
+  assert.ok(store.has("ytd_voice_owner"));
 
-  // Window A loses focus (user switched to window B whose own panel may
-  // now narrate): this panel must fall silent at once, not keep speaking.
-  controller.setWindowFocus(false);
+  // Panel B boots with the same preference: auto-restore must NOT start a
+  // second narration while A's owner heartbeat is fresh.
+  const buttonB = new FakeButton();
+  const controllerB = voiceController.createController({
+    button: buttonB,
+    storage: {
+      async get(key) {
+        if (key === "ytd_voice_enabled") return { ytd_voice_enabled: true };
+        return store.has(key) ? { [key]: store.get(key) } : {};
+      },
+      async set(value) { for (const [k, v] of Object.entries(value)) store.set(k, v); },
+      async remove(key) { store.delete(key); },
+    },
+    storageEvents,
+    isTranscriptEnabled: () => true,
+    runtime: { async sendMessage() { return { success: true }; } },
+    relay: async () => ({ currentTime: 0, playbackRate: 1, paused: false, pausedByVoice: false }),
+    speechSynthesis: { getVoices: () => [], cancel() {} },
+    SpeechSynthesisUtteranceCtor: FakeUtterance,
+    setIntervalFn: () => 1,
+    clearIntervalFn() {},
+    onStatus: (message) => statusMessages.push(message),
+  });
+  await controllerB.initialize();
+  controllerB.refreshAvailability();
   await nextTurn();
   await nextTurn();
-  const spokenAtBlur = spoken.length;
-  await new Promise((resolve) => setTimeout(resolve, 120));
-  assert.equal(spoken.length, spokenAtBlur);
-  assert.ok(relayMessages.includes("restoreVoicePlayback"));
-  assert.equal(controller.getState().enabled, true);
+  assert.equal(buttonB.getAttribute("aria-checked"), "false");
+  assert.ok(statusMessages.some((message) => /another window/.test(message)));
 
-  // Window A regains focus: narration resumes by itself.
-  controller.setWindowFocus(true);
-  await nextTurn();
-  await nextTurn();
-  assert.ok(spoken.length > spokenAtBlur);
-  await controller.stop();
+  // A manual click on B still takes over: B claims the key, A yields.
+  assert.equal(spoken.length, 1);
+  await panelA.stop();
+  spoken.length = 0;
+  assert.ok(!store.has("ytd_voice_owner") || store.get("ytd_voice_owner").id !== "stale");
 });
 
 test("a sentence that finished naturally is not repeated on return", async () => {

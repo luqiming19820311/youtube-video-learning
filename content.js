@@ -189,7 +189,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   if (message.action === "pauseVideo") {
     // The user switched away from the video tab: pause playback and mark the
-    // pause as user-owned so Voice cleanup never auto-resumes it.
+    // pause as user-owned so Voice cleanup never auto-resumes it. While
+    // Voice narration is ducking, skip the pause — narration follows the
+    // video timeline across windows and must not be interrupted.
+    if (voicePlaybackController.isDucking()) {
+      sendResponse({ success: true, skipped: true });
+      return false;
+    }
     const video = document.querySelector("video.html5-main-video");
     if (video && !video.paused) video.pause();
     voicePlaybackController.clearCatchUpPause();

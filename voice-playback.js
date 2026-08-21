@@ -33,13 +33,20 @@
     }
 
     /**
-     * Pauses the page's video when its tab becomes hidden. This runs in the
-     * page itself so the pause survives side-panel transitions: the panel
-     * page can be destroyed and recreated while the user switches tabs, and
-     * during that gap its "pauseVideo" message never fires — which left the
-     * video playing in the background and mixed with resumed narration.
+     * True while Voice narration ducks the video (its "narration is
+     * running" signal). While ducked, tab/window switches must NOT pause
+     * the video: narration follows the video timeline across windows.
+     */
+    function isDucking() {
+      return original !== null;
+    }
+
+    /**
+     * Pauses the page's video when its tab becomes hidden. Skipped while
+     * narration ducks the audio — narration keeps following the timeline.
      */
     function pauseForHiddenPage() {
+      if (isDucking()) return false;
       const video = getVideo();
       if (!video || video.paused) return false;
       pausedByVoice = false;
@@ -96,6 +103,7 @@
     return {
       clearCatchUpPause,
       enableDucking,
+      isDucking,
       pauseForCatchUp,
       pauseForHiddenPage,
       restore,

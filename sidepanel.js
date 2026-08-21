@@ -252,6 +252,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   voiceController = YTD_VOICE_CONTROLLER.createController({
     button: document.getElementById("voiceToggle"),
     storage: chrome.storage.local,
+    storageEvents: chrome.storage.onChanged,
     runtime: chrome.runtime,
     isTranscriptEnabled: () => transcriptTabsController?.isEnabled() === true,
     relay: async (payload) => {
@@ -400,11 +401,6 @@ let navigationRefreshTimer = null;
 let panelWindowId = null;
 chrome.windows.getCurrent().then((w) => {
   panelWindowId = w.id;
-  // The panel may boot while its window already has focus (no event will
-  // fire); establish the initial focus state explicitly.
-  chrome.windows.getLastFocused?.()?.then?.((win) => {
-    voiceController?.setWindowFocus?.(win?.id === panelWindowId);
-  });
 });
 
 function scheduleDigestRefresh() {
@@ -480,29 +476,17 @@ chrome.tabs.onActivated.addListener(async ({ tabId, windowId }) => {
 });
 
 // Switching to ANOTHER browser window keeps this tab "visible" (no
-// visibilitychange, and tabs.onActivated bails for foreign windows), so the
-// video would keep playing under Voice narration. Window-focus changes are
-// the one signal that catches exactly this case. They also decide which
-// panel may narrate at all: each window has its own side-panel instance
-// with its own speechSynthesis, so two live panels would speak Chinese over
-// each other — only the focused window's panel stays audible.
+// visibilitychange, and tabs.onActivated bails for foreign windows). Pause
+// the tracked video there — UNLESS Voice narration is running: narration is
+// deliberately window-independent and must keep following the video, so the
+// content script skips the pause while its audio is ducked. Narration
+// exclusivity across panels is handled by the voice-owner key instead.
 chrome.windows.onFocusChanged?.addListener?.((windowId) => {
-  const focused = panelWindowId !== null && windowId === panelWindowId;
-  voiceController?.setWindowFocus?.(focused);
   // NONE means Chrome lost OS focus entirely (another app or browser took
-  // it) — the video must pause there too, or its audio keeps mixing with
-  // narration while the user is elsewhere. Any other foreign window is the
-  // same user-intent: away from the video.
+  // it) — same user-intent: away from the video.
   if (windowId === chrome.windows.WINDOW_ID_NONE
       || (panelWindowId !== null && windowId !== panelWindowId)) {
     pauseTrackedVideo();
-  }
-});
-// The panel may boot while its window already has focus (no event will
-// fire); establish the initial state explicitly.
-chrome.windows.getLastFocused?.()?.then?.((win) => {
-  if (panelWindowId !== null) {
-    voiceController?.setWindowFocus?.(win?.id === panelWindowId);
   }
 });
 

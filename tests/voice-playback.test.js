@@ -77,6 +77,25 @@ test("hidden page pauses its own video without relying on the panel", () => {
   assert.equal(controller.pauseForHiddenPage(), false);
 });
 
+test("narrating (ducked) videos keep playing when the tab hides", () => {
+  const video = createVideo();
+  const controller = voicePlayback.createController(() => video);
+
+  // Voice narration is running: the video timeline must keep advancing so
+  // narration can follow it across window switches.
+  controller.enableDucking(0.15);
+  assert.equal(controller.isDucking(), true);
+  assert.equal(controller.pauseForHiddenPage(), false);
+  assert.equal(video.paused, false);
+  assert.equal(video.pauseCalls, 0);
+
+  // Narration ends: hiding pauses as usual again.
+  controller.restore();
+  assert.equal(controller.isDucking(), false);
+  assert.equal(controller.pauseForHiddenPage(), true);
+  assert.equal(video.paused, true);
+});
+
 test("teardown cleanup never auto-plays a hidden page", async () => {
   const originalDocument = globalThis.document;
   const video = createVideo();

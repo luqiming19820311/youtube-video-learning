@@ -10,6 +10,12 @@
   const VOICE_ENABLED_KEY = "ytd_voice_enabled";
   const SPOKEN_THROUGH_KEY = "ytd_voice_spoken_through";
   const SPOKEN_THROUGH_TTL_MS = 6 * 60 * 60 * 1000;
+  // Global narration ownership: Chrome gives every window its own side-panel
+  // instance with its own speechSynthesis, so two panels could speak Chinese
+  // over each other. Only one panel may narrate at a time — the current
+  // owner heartbeats this key; a fresh foreign entry means takeover.
+  const VOICE_OWNER_KEY = "ytd_voice_owner";
+  const VOICE_OWNER_TTL_MS = 5_000;
   function findSegmentIndex(segments, currentTime) {
     if (segments.length && currentTime >= segments.at(-1).end) return segments.length;
     let index = 0;
@@ -30,6 +36,7 @@
     streamPlayerFactory = () => defaultPlayerApi.createPlayer({ runtime }),
     setIntervalFn = setInterval,
     clearIntervalFn = clearInterval,
+    storageEvents = null,
     onStatus = () => {},
   }) {
     const sessionId = translationApi.createSessionId();
@@ -49,11 +56,6 @@
     // is spoken right away instead of waiting for its video timestamp, so
     // returning never feels silent.
     let resumeSpeakImmediately = false;
-    // Chrome gives every window its own side-panel instance, each with its
-    // own speechSynthesis. Only the focused window's panel may narrate —
-    // otherwise two panels speak Chinese over each other.
-    let windowFocused = true;
-    let awaitingFocusRestart = false;
     // videoId -> { videoId, index, markedAt, characters, heardChars }: the
     // last segment whose speech BEGAN and how much of it was heard.
     let spokenThroughByVideo = new Map();
@@ -90,6 +92,7 @@
     async function initialize() {
       const stored = await storage.get(settingsApi.STORAGE_KEY);
       settings = settingsApi.normalize(stored[settingsApi.STORAGE_KEY]);
+      observeNarrationTakeover();
       try {
         const flag = await storage.get(VOICE_ENABLED_KEY) || {};
         persistedEnabled = flag[VOICE_ENABLED_KEY] === true;
@@ -208,50 +211,108 @@
       );
       if (shouldRestart && segments.length) {
         enabled = false;
-        void start();
+        void (async () => {
+          // Auto-restart (video switch) must not fire while another panel
+          // owns narration; a manual toggle bypasses this check.
+          if (!await canClaimNarration()) {
+            updateButton("off");
+            onStatus("Voice is narrating in another window.", "info");
+            return;
+          }
+          await start();
+        })();
         return;
       }
       updateButton(enabled ? (segments.length ? "on" : "loading") : "off");
     }
+    // ---- Global narration ownership -------------------------------------
+    // Narration is deliberately window-independent: switching windows never
+    // stops it. The owner key only prevents a SECOND panel from starting
+    // automatically while another one is already narrating.
+    let ownershipListener = null;
+    let ownerRenewTimer = null;
+    async function readVoiceOwner() {
+      try {
+        const stored = await storage.get(VOICE_OWNER_KEY) || {};
+        const entry = stored[VOICE_OWNER_KEY];
+        if (!entry || typeof entry.id !== "string") return null;
+        return entry;
+      } catch (_error) {
+        return null;
+      }
+    }
+    async function canClaimNarration() {
+      const entry = await readVoiceOwner();
+      if (!entry || entry.id === sessionId) return true;
+      return Date.now() - Number(entry.ts || 0) > VOICE_OWNER_TTL_MS;
+    }
+    function claimNarration() {
+      try {
+        Promise.resolve(storage?.set?.({ [VOICE_OWNER_KEY]: { id: sessionId, ts: Date.now() } }))
+          .catch(() => {});
+      } catch (_error) {
+        // Best-effort ownership.
+      }
+      if (ownerRenewTimer === null) {
+        ownerRenewTimer = setIntervalFn(() => {
+          try {
+            Promise.resolve(storage?.set?.({ [VOICE_OWNER_KEY]: { id: sessionId, ts: Date.now() } }))
+              .catch(() => {});
+          } catch (_error) {}
+        }, 1_000);
+      }
+    }
+    function renounceNarration() {
+      if (ownerRenewTimer !== null) {
+        clearIntervalFn(ownerRenewTimer);
+        ownerRenewTimer = null;
+      }
+      readVoiceOwner().then((entry) => {
+        if (!entry || entry.id !== sessionId) return;
+        try {
+          Promise.resolve(storage?.remove?.(VOICE_OWNER_KEY)).catch(() => {});
+        } catch (_error) {}
+      }).catch(() => {});
+    }
+    function observeNarrationTakeover() {
+      // Another panel's user clicked its Voice switch: that panel now owns
+      // narration; this one yields immediately.
+      ownershipListener = (changes, area) => {
+        const change = changes && changes[VOICE_OWNER_KEY];
+        if (!change || area !== "local") return;
+        const next = change.newValue;
+        if (next && next.id !== sessionId && enabled) {
+          void haltPlayback();
+          updateButton("off");
+          onStatus("Voice is narrating in another window.", "info");
+        }
+      };
+      try {
+        storageEvents?.addListener?.(ownershipListener);
+      } catch (_error) {}
+    }
+
     function refreshAvailability() {
       // Restore the persisted Voice choice as a waiting narrator: the panel
       // may have been rebuilt (tab switch, reopen) after the user enabled it.
       if (!enabled && !segments.length && persistedEnabled && isTranscriptEnabled()) {
-        enabled = true;
-        updateButton("loading");
-        onStatus("");
-        if (segments.length) {
-          enabled = false;
-          void start();
-        }
+        void (async () => {
+          if (!await canClaimNarration()) {
+            updateButton("off");
+            onStatus("Voice is narrating in another window.", "info");
+            return;
+          }
+          enabled = true;
+          updateButton("loading");
+          onStatus("");
+          if (segments.length) {
+            enabled = false;
+            await start();
+          }
+        })();
         return;
       }
       updateButton(enabled ? (segments.length ? "on" : "loading") : "off");
-    }
-    // Called by the panel when its window gains/loses OS focus. A blurred
-    // panel must stop narrating immediately (another window's panel may be
-    // about to start — two speechSynthesis instances would overlap), and a
-    // refocused panel resumes from where it left off.
-    function setWindowFocus(focused) {
-      if (focused === windowFocused) return;
-      windowFocused = focused;
-      if (!focused) {
-        if (enabled) {
-          awaitingFocusRestart = true;
-          updateButton("paused");
-          void haltPlayback();
-        }
-        return;
-      }
-      if (awaitingFocusRestart) {
-        awaitingFocusRestart = false;
-        if (enabled && segments.length && isTranscriptEnabled()) {
-          enabled = false;
-          void start();
-        } else {
-          updateButton(enabled ? (segments.length ? "on" : "loading") : "off");
-        }
-      }
     }
     async function ensureTranslations(startIndex, activeGeneration = generation) {
       const missing = segments
@@ -600,6 +661,7 @@
         }
         lastPlayback = { time: snapshot.currentTime, checkedAt: Date.now() };
         appliedSpeechPause = false;
+        claimNarration();
         updateButton("on");
         syncTimer = setIntervalFn(() => void syncTick(), 250);
         void runPlayback(activeGeneration);
@@ -612,6 +674,7 @@
       generation += 1;
       if (syncTimer !== null) clearIntervalFn(syncTimer);
       syncTimer = null;
+      renounceNarration();
       appliedSpeechPause = false;
       clearTimeout(resumeCheckTimer);
       resumeSpeakImmediately = false;
@@ -692,7 +755,7 @@
     }
     return {
       clearTranscript, initialize, refreshAvailability, seekTo, setTranscript,
-      setWindowFocus, start, stop, toggle,
+      start, stop, toggle,
       getState: () => ({
         enabled, generation, currentIndex, segmentCount: segments.length,
         voiceCharsPerSecond: calibratedCps,
