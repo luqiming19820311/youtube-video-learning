@@ -180,13 +180,13 @@ V1.8.0 发布前全绿：
 1. **面板不再自关**（sidepanel.js）：非 YouTube 前台标签只 `pauseTrackedVideo()`（播报中被内容脚本跳过），删除 `window.close()`——面板存活则播报/开关状态天然保持；Chrome 自身的按标签折叠负责隐藏。
 2. **owner 死锁兜底**（voice-controller.js）：`refreshAvailability` 因他人 owner 被拒后，`VOICE_OWNER_TTL_MS + 500ms` 后自动复查一次（`ownershipRecheckTimer`，haltPlayback 清理）——面板强杀后 5 秒内重开也能自动恢复 Voice。
 
-验证：136 项测试全过（新增"面板不自关"源码断言与"过期 owner 不再阻塞恢复"用例）。E2E：播报中切到 example.com 标签 6 秒——视频全程 ducked 0.15 持续播放（英文未裸播）、TTS 引擎全程出声；切回 YouTube 后 Voice 开关 on/true。版本 1.8.3，`dist/youtube-digest-v1.8.3.zip`（SHA-256：`598176341a7fd9f840f6ea3374e4a4d47e91cbcc083c658fad9b8d112bcba878`）。Release 待用户确认。
+验证：136 项测试全过（新增"面板不自关"源码断言与"过期 owner 不再阻塞恢复"用例）。E2E：播报中切到 example.com 标签 6 秒——视频全程 ducked 0.15 持续播放（英文未裸播）、TTS 引擎全程出声；切回 YouTube 后 Voice 开关 on/true。版本 1.8.3，`dist/youtube-digest-v1.8.3.zip`（SHA-256：`598176341a7fd9f840f6ea3374e4a4d47e91cbcc083c658fad9b8d112bcba878`）。V1.8.3 已发布：GitHub Release `v1.8.3`（标题 `V1.8.3版本`，Latest），附件 `youtube-digest-v1.8.3.zip`（144397 字节，与本地 SHA-256 一致），备注：`youtube-digest-v1.8.3；修复：切换到其他网页页面时中文播报不再中断、视频原声不再突然变大，Voice 开关状态保持记忆不重置。`
 
 ## 当前 GitHub 交付状态
 
 - 目标仓库：`luqiming19820311/youtube-video-learning`（Private，需保持）
 - 分支：`feat/transcript-master-toggle`（工作分支，推送到 origin）
-- 版本：`1.8.1`（Latest）；历史 `1.8.0`/`1.7.0`；发布包 `youtube-digest-v1.8.1.zip`
+- 版本：`1.8.3`（Latest）；历史 `1.8.1`/`1.8.0`/`1.7.0`；发布包 `youtube-digest-v1.8.3.zip`
 - GitHub Release：`v1.8.0`，标题 `V1.8.0版本`，备注：`youtube-digest-v1.8.0`；`新增：中文语音播报，播报如果慢于字幕2段，视频会暂停，等中文播报跟上后再开始，播报时原英文会被压低50%声音。`
 - 历史版本：`v1.7.0`（Transcript 开关与多模型选择）及其 Release 附件为旧包
 - 若 GitHub CLI 授权过期，使用 `gh auth login -h github.com` 重新授权后再推送
