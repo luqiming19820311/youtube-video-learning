@@ -1,11 +1,7 @@
 /** Pure Voice pacing and playback synchronization helpers. */
 (() => {
-  // Narration never drops below the video's own timeline pace ("keep up
-  // with the English speaker"), and even with the user's fastest
-  // preference it never exceeds twice the natural pace.
-  const MIN_RATE = 1.0;
+  const MIN_RATE = 0.85;
   const MAX_RATE = 1.8;
-  const ABS_MAX_RATE = 2.0;
   // Default Chinese speech density at rate 1.0; the controller replaces it
   // with a measured value from the installed voice.
   const DEFAULT_ZH_CHARS_PER_SECOND = 4.2;
@@ -29,16 +25,13 @@
     playbackRate = 1,
     lagSegments = 0,
     charactersPerSecond = DEFAULT_ZH_CHARS_PER_SECOND,
-    speedMultiplier = 1,
   }) {
     const windowSeconds = Math.max(0.8, Number(availableSeconds) || 0.8);
     const videoRate = Math.max(0.25, Number(playbackRate) || 1);
     let rate = estimateSpeechSeconds(text, charactersPerSecond) / (windowSeconds / videoRate);
     if (lagSegments >= 1) rate = Math.max(rate, 1.35);
     if (lagSegments >= 2) rate = MAX_RATE;
-    const base = Math.min(MAX_RATE, Math.max(MIN_RATE, rate));
-    const scaled = base * (Number(speedMultiplier) > 0 ? Number(speedMultiplier) : 1);
-    return Math.round(Math.min(ABS_MAX_RATE, Math.max(MIN_RATE, scaled)) * 100) / 100;
+    return Math.round(Math.min(MAX_RATE, Math.max(MIN_RATE, rate)) * 100) / 100;
   }
 
   function getCatchUpAction(lagSegments, pausedByVoice = false) {
@@ -80,7 +73,6 @@
   const api = {
     MIN_RATE,
     MAX_RATE,
-    ABS_MAX_RATE,
     DEFAULT_ZH_CHARS_PER_SECOND,
     calculateAdaptiveRate,
     describePace,

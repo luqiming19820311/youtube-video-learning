@@ -27,7 +27,6 @@
     const byId = (id) => document.getElementById(id);
     const elements = {
       providerList: byId("ttsProviderList"),
-      speedPreference: byId("voiceSpeedPreference"),
       systemPanel: byId("systemTtsPanel"),
       mimoPanel: byId("mimoTtsPanel"),
       systemVoice: byId("systemVoice"),
@@ -61,7 +60,6 @@
 
     function captureInputs() {
       current.system.voiceURI = elements.systemVoice.value;
-      current.speedMultiplier = ttsSettings.normalizeSpeedMultiplier(elements.speedPreference.value);
       current.mimo = ttsSettings.normalize({
         activeProvider: "mimo",
         mimo: {
@@ -87,7 +85,6 @@
     }
 
     function renderInputs() {
-      elements.speedPreference.value = String(current.speedMultiplier);
       elements.accessMode.value = current.mimo.accessMode;
       elements.baseUrl.value = current.mimo.baseUrl;
       elements.apiKey.value = current.mimo.apiKey;
@@ -223,9 +220,6 @@
       element.addEventListener("change", markMimoDirty);
     }
     elements.systemVoice.addEventListener("change", captureInputs);
-    // Pace applies to both engines and is not a connection credential, so it
-    // must NOT invalidate the MiMo verification.
-    elements.speedPreference.addEventListener("change", captureInputs);
     elements.testSystem.addEventListener("click", testSystemVoice);
     elements.testMimo.addEventListener("click", testMimo);
     if (root.speechSynthesis) root.speechSynthesis.onvoiceschanged = populateSystemVoices;

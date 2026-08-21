@@ -353,9 +353,6 @@
         availableSeconds: Math.max(0.8, segment.end - snapshot.currentTime),
         playbackRate: snapshot.playbackRate,
         lagSegments: Math.max(0, videoIndex - index),
-        speedMultiplier: Number(settings?.voice?.speedMultiplier) > 0
-          ? Number(settings.voice.speedMultiplier)
-          : 1,
       });
     }
     // Measures the installed voice's real base speed so the adaptive rate
@@ -518,13 +515,7 @@
             const mimoStart = Date.now();
             try {
               await queued.get(currentIndex);
-              const speechText = translationFor(segments[currentIndex]);
-              recordSpeechProgress(speechText, true, 0);
-              // Same measured-pace calibration as the system voice, so the
-              // adaptive rate tracks MiMo's actual speaking speed too.
-              calibrateVoiceSpeed(speechText, {
-                speechSeconds: (Date.now() - mimoStart) / 1000,
-              });
+              recordSpeechProgress(translationFor(segments[currentIndex]), true, 0);
             } catch (error) {
               recordSpeechProgress(
                 translationFor(segments[currentIndex]),

@@ -17,7 +17,7 @@ test("manifest uses minimized install-time permissions", () => {
   assert.ok(!manifest.permissions.includes("activeTab"));
   assert.ok(manifest.host_permissions.includes("https://api.deepseek.com/*"));
   assert.ok(manifest.optional_host_permissions.includes("https://api.groq.com/*"));
-  assert.equal(manifest.version, "1.8.2");
+  assert.equal(manifest.version, "1.8.1");
 });
 
 test("Transcript toggle controller is included in the release package", () => {

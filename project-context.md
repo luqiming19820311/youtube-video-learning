@@ -167,16 +167,6 @@ V1.8.0 发布前全绿：
 
 验证：OS 级真实切换——切到其他应用 6 秒：播报继续（spoken 1→3）、视频持续（ducked）；切到另一浏览器窗口（无面板）8 秒：播报 8/8 秒持续出声、视频持续播放；双面板场景 overlap=0（无双声，自动恢复被 owner 挡住）。134 项测试全过。版本 1.8.1，`dist/youtube-digest-v1.8.1.zip`（SHA-256：`d006034c722b8c8dd8d2f32fa863d66df2acfceb944a5945a52b2672ce63f182`）。V1.8.1 已发布：GitHub Release `v1.8.1`（标题 `V1.8.1版本`，Latest），附件 `youtube-digest-v1.8.1.zip`（144069 字节，与本地 SHA-256 一致），备注：`youtube-digest-v1.8.1；修复：中文播报改为全局持续——切换窗口或应用时播报不中断，播报中的视频不再被暂停；修复两个中文播报叠加的问题，任何时刻全局只有一个播报声音（手动点击开关可直接接管）。`
 
-## 2026-08-21 播报速度可调 + 与英文时间线对齐（V1.8.2）
-
-用户需求：加快播报速度（尤其 MiMo）、中文速度与英文演讲自适应一致。三项改动：
-
-1. **设置页"播报速度"四档**：TTS 区新增 `voiceSpeedPreference`（舒缓 0.9x / 标准 1.0x / 偏快 1.15x / 快 1.3x），系统语音与 MiMo 通用；`voice.speedMultiplier` 持久化（`SPEED_MULTIPLIERS` 白名单，非法回落默认 **1.15 偏快**）；改速度不触发 MiMo 重新验证（非连接凭证）。
-2. **永不慢于英文**：`MIN_RATE` 0.85→**1.0**（时间宽裕也不故意放慢，节奏均匀）；新增 `ABS_MAX_RATE = 2.0`——`calculateAdaptiveRate` 基础自适应值（[1.0,1.8] 钳制，lag 提升）× `speedMultiplier` 后再钳到 [1.0, 2.0]。
-3. **MiMo 语速校准**：MiMo 分支 `activate` 后计时，播放完成用实际时长调 `calibrateVoiceSpeed`（与系统语音同 EMA/钳制；<1s 样本仍拒绝）——MiMo 不再用保守估算导致偏慢。MiMo API 无原生 speed 参数，速率仍经 `describePace` 五档提示词控制。
-
-测试：138 项全过（速度档白名单、倍率乘算与 2.0 钳制、下限 1.0、MiMo 校准、改速度不清 MiMo 验证等用例）。E2E：时间宽裕段落默认 rate=1.15、切"快"档后 rate=1.3。版本 1.8.2，`dist/youtube-digest-v1.8.2.zip`（SHA-256：`dfc0bef1bb769b39ca0ebd18a6529ac6ab94e4d577f8529c15f70e5ea8965ecf`）。V1.8.2 Release 待用户确认发布。
-
 ## 当前 GitHub 交付状态
 
 - 目标仓库：`luqiming19820311/youtube-video-learning`（Private，需保持）

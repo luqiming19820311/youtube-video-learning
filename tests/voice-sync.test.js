@@ -11,7 +11,7 @@ test("calculates adaptive speed and pauses after two segments of lag", () => {
       playbackRate: 1,
       lagSegments: 0,
     }),
-    1,
+    0.85,
   );
 
   assert.equal(
@@ -59,42 +59,12 @@ test("speech estimates follow the measured voice speed", () => {
   assert.equal(voiceSync.DEFAULT_ZH_CHARS_PER_SECOND, 4.2);
 });
 
-test("narration never slows below the video timeline and pace scales", () => {
-  // Time-rich window: base rate would be ~0.4 — it must be lifted to the
-  // timeline minimum (1.0), never below ("keep up with the English").
-  const short = "一句短话。";
-  assert.equal(
-    voiceSync.calculateAdaptiveRate({
-      text: short, availableSeconds: 12, playbackRate: 1,
-    }),
-    1,
-  );
-
-  // The user's pace preference multiplies the base, clamped at ABS_MAX 2.0.
-  assert.equal(
-    voiceSync.calculateAdaptiveRate({
-      text: short, availableSeconds: 12, playbackRate: 1, speedMultiplier: 1.3,
-    }),
-    1.3,
-  );
-  const dense = "一二三四五六七八九十一二三四五六七八九十一二三四五六七八九十";
-  assert.equal(
-    voiceSync.calculateAdaptiveRate({
-      text: dense, availableSeconds: 5, playbackRate: 1,
-      charactersPerSecond: 3, speedMultiplier: 1.3,
-    }),
-    2,
-  );
-  assert.equal(voiceSync.MIN_RATE, 1);
-  assert.equal(voiceSync.ABS_MAX_RATE, 2);
-});
-
 test("detects Chinese transcripts and builds MiMo pace instructions", () => {
   assert.equal(voiceSync.isChineseTranscript("zh-CN", "Hello"), true);
   assert.equal(voiceSync.isChineseTranscript("en", "这是中文内容。"), true);
   assert.equal(voiceSync.isChineseTranscript("en", "English transcript"), false);
   assert.match(voiceSync.describePace(1.8), /快速/);
-  assert.match(voiceSync.describePace(1), /自然/);
+  assert.match(voiceSync.describePace(0.85), /舒缓/);
 });
 
 test("distinguishes a user seek from ordinary playback progress", () => {

@@ -7,7 +7,6 @@ test("defaults Voice to the local system provider", () => {
   const voice = ttsSettings.normalize();
 
   assert.equal(voice.activeProvider, "system");
-  assert.equal(voice.speedMultiplier, 1.15);
   assert.equal(voice.system.voiceURI, "");
   assert.equal(voice.mimo.accessMode, "standard");
   assert.equal(voice.mimo.baseUrl, "https://api.xiaomimimo.com/v1");
@@ -70,19 +69,4 @@ test("rejects unsupported MiMo models, voices, and unsafe values", () => {
   assert.equal(voice.mimo.timeoutMs, 60_000);
   assert.equal(voice.mimo.retries, 1);
   assert.equal(voice.mimo.verifiedAt, 0);
-});
-
-test("narration pace accepts only the supported multipliers", () => {
-  assert.equal(ttsSettings.normalizeSpeedMultiplier(0.9), 0.9);
-  assert.equal(ttsSettings.normalizeSpeedMultiplier("1.3"), 1.3);
-  // Anything else — including legacy stored values — falls back to the
-  // default "a bit fast" pace.
-  assert.equal(ttsSettings.normalizeSpeedMultiplier(1.05), 1.15);
-  assert.equal(ttsSettings.normalizeSpeedMultiplier("fast"), 1.15);
-  assert.equal(ttsSettings.normalizeSpeedMultiplier(undefined), 1.15);
-  assert.equal(ttsSettings.DEFAULT_SPEED_MULTIPLIER, 1.15);
-  assert.deepEqual([...ttsSettings.SPEED_MULTIPLIERS], [0.9, 1, 1.15, 1.3]);
-
-  const voice = ttsSettings.normalize({ speedMultiplier: 0.9 });
-  assert.equal(voice.speedMultiplier, 0.9);
 });
