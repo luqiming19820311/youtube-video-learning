@@ -165,13 +165,13 @@ V1.8.0 发布前全绿：
 2. **全局播报权**（voice-controller.js）：`ytd_voice_owner`（{id, ts}，1s 心跳、5s 过期）。播报启动即 claim；**自动恢复/自动重启前检查**——他人心跳新鲜则不启动（提示 "Voice is narrating in another window"）；手动点击开关不检查（直接接管）。`storage.onChanged` 监听 owner 变化：他人接管时本面板立即让位停止。stop/释放时清除 owner。`setIntervalFn/clearIntervalFn` 注入续约定时器。
 3. 移除上一版的 `setWindowFocus` 焦点门控（sidepanel.js 的 onFocusChanged 仅保留 pauseTrackedVideo，播报中会被内容脚本跳过）。
 
-验证：OS 级真实切换——切到其他应用 6 秒：播报继续（spoken 1→3）、视频持续（ducked）；切到另一浏览器窗口（无面板）8 秒：播报 8/8 秒持续出声、视频持续播放；双面板场景 overlap=0（无双声，自动恢复被 owner 挡住）。134 项测试全过。版本 1.8.1，`dist/youtube-digest-v1.8.1.zip`（SHA-256：`d006034c722b8c8dd8d2f32fa863d66df2acfceb944a5945a52b2672ce63f182`）。V1.8.1 Release 待用户确认文案后发布。
+验证：OS 级真实切换——切到其他应用 6 秒：播报继续（spoken 1→3）、视频持续（ducked）；切到另一浏览器窗口（无面板）8 秒：播报 8/8 秒持续出声、视频持续播放；双面板场景 overlap=0（无双声，自动恢复被 owner 挡住）。134 项测试全过。版本 1.8.1，`dist/youtube-digest-v1.8.1.zip`（SHA-256：`d006034c722b8c8dd8d2f32fa863d66df2acfceb944a5945a52b2672ce63f182`）。V1.8.1 已发布：GitHub Release `v1.8.1`（标题 `V1.8.1版本`，Latest），附件 `youtube-digest-v1.8.1.zip`（144069 字节，与本地 SHA-256 一致），备注：`youtube-digest-v1.8.1；修复：中文播报改为全局持续——切换窗口或应用时播报不中断，播报中的视频不再被暂停；修复两个中文播报叠加的问题，任何时刻全局只有一个播报声音（手动点击开关可直接接管）。`
 
 ## 当前 GitHub 交付状态
 
 - 目标仓库：`luqiming19820311/youtube-video-learning`（Private，需保持）
 - 分支：`feat/transcript-master-toggle`（工作分支，推送到 origin）
-- 版本：`1.8.0`；发布包 `youtube-digest-v1.8.0.zip`
+- 版本：`1.8.1`（Latest）；历史 `1.8.0`/`1.7.0`；发布包 `youtube-digest-v1.8.1.zip`
 - GitHub Release：`v1.8.0`，标题 `V1.8.0版本`，备注：`youtube-digest-v1.8.0`；`新增：中文语音播报，播报如果慢于字幕2段，视频会暂停，等中文播报跟上后再开始，播报时原英文会被压低50%声音。`
 - 历史版本：`v1.7.0`（Transcript 开关与多模型选择）及其 Release 附件为旧包
 - 若 GitHub CLI 授权过期，使用 `gh auth login -h github.com` 重新授权后再推送
