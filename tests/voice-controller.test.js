@@ -921,6 +921,58 @@ test("narration is window-independent: an active owner blocks only auto-start", 
   await panelA.stop();
   spoken.length = 0;
   assert.ok(!store.has("ytd_voice_owner") || store.get("ytd_voice_owner").id !== "stale");
+  await controllerB.stop();
+});
+
+test("a stale ownership heartbeat stops blocking auto-restore", async () => {
+  const button = new FakeButton();
+  const store = new Map([
+    ["ytd_voice_owner", { id: "dead-panel", ts: Date.now() }],
+    ["ytd_voice_enabled", true],
+  ]);
+  const statuses = [];
+  class FakeUtterance {
+    constructor(text) { this.text = text; }
+  }
+  const controller = voiceController.createController({
+    button,
+    storage: {
+      async get(key) { return store.has(key) ? { [key]: store.get(key) } : {}; },
+      async set(value) { for (const [k, v] of Object.entries(value)) store.set(k, v); },
+      async remove(key) { store.delete(key); },
+    },
+    storageEvents: { addListener() {} },
+    isTranscriptEnabled: () => true,
+    runtime: { async sendMessage() { return { success: true }; } },
+    relay: async () => ({ currentTime: 0, playbackRate: 1, paused: false, pausedByVoice: false }),
+    speechSynthesis: {
+      getVoices: () => [{ voiceURI: "zh", lang: "zh-CN" }],
+      speak: () => {},
+      cancel() {}, pause() {}, resume() {},
+    },
+    SpeechSynthesisUtteranceCtor: FakeUtterance,
+    setIntervalFn: () => 1,
+    clearIntervalFn() {},
+    onStatus: (message) => statuses.push(message),
+  });
+  await controller.initialize();
+
+  // Fresh foreign heartbeat: restore is blocked and a recheck is armed.
+  controller.refreshAvailability();
+  await nextTurn();
+  await nextTurn();
+  assert.equal(button.getAttribute("aria-checked"), "false");
+  assert.ok(statuses.some((message) => /another window/.test(message)));
+
+  // The owning panel was killed; its heartbeat goes stale (the armed
+  // recheck fires and calls refreshAvailability again).
+  store.set("ytd_voice_owner", { id: "dead-panel", ts: Date.now() - 6_000 });
+  controller.refreshAvailability();
+  await nextTurn();
+  await nextTurn();
+  assert.equal(button.getAttribute("aria-checked"), "true");
+  assert.equal(button.dataset.state, "loading");
+  await controller.stop();
 });
 
 test("a sentence that finished naturally is not repeated on return", async () => {

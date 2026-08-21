@@ -50,6 +50,16 @@ test("release pages load the Voice modules and expose TTS settings", () => {
   );
 });
 
+test("the panel never closes itself off YouTube, keeping narration alive", () => {
+  const sidepanel = read("sidepanel.js");
+  // Closing on non-YouTube tabs used to destroy the narration session
+  // (Chinese dub fell silent, English audio returned, switch reset to off).
+  // The front-tab handler must pause the video only — no window.close().
+  const handler = sidepanel.match(/function handleFrontTabUrl[\s\S]*?\n}/)?.[0] || "";
+  assert.ok(handler.includes("pauseTrackedVideo()"));
+  assert.ok(!handler.includes("window.close()"));
+});
+
 test("player CC preference persists and switching tabs pauses the tracked video", () => {
   const playerCaptions = read("player-captions.js");
   // CC is remembered across videos: the toggle reports to the service worker

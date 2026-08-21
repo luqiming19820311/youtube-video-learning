@@ -171,6 +171,17 @@ V1.8.0 发布前全绿：
 
 用户反馈 1.8.2（播报速度四档）效果不好，要求回退到 1.8.1（`1d95625`）。已执行 `git revert 3211817`（提交 `ebab1b2`），代码与设置页回到 1.8.1 状态：无"播报速度"选项，语速下限恢复 0.85，MiMo 恢复为不校准。134 项测试全过；重新打包的 `dist/youtube-digest-v1.8.1.zip` 与已发布 v1.8.1 Release 附件**内容逐文件一致**（zip 整体 SHA 差异仅为打包时间戳）。GitHub v1.8.1 Release 无需变更。速度调整需求保留待后续重新设计（可能需要更保守的默认值或更细的档位）。
 
+## 2026-08-22 切换网页页面：播报持续与开关记忆修复（V1.8.3）
+
+用户反馈（回退 1.8.2 后仍存在）：切换到其他网页页面时 Voice 开关自动关闭；正在播的中文播报停止、视频英文原声裸播。根因是早期设计：`handleFrontTabUrl` 对非 YouTube 前台标签执行 `window.close()` 自关面板 → 面板销毁触发 pagehide → `stop()` → 中文播报停止 + ducking 恢复（英文裸播）；重开面板时旧 owner 心跳未过期还会挡住自动恢复（开关显示 off）。
+
+修复（两项）：
+
+1. **面板不再自关**（sidepanel.js）：非 YouTube 前台标签只 `pauseTrackedVideo()`（播报中被内容脚本跳过），删除 `window.close()`——面板存活则播报/开关状态天然保持；Chrome 自身的按标签折叠负责隐藏。
+2. **owner 死锁兜底**（voice-controller.js）：`refreshAvailability` 因他人 owner 被拒后，`VOICE_OWNER_TTL_MS + 500ms` 后自动复查一次（`ownershipRecheckTimer`，haltPlayback 清理）——面板强杀后 5 秒内重开也能自动恢复 Voice。
+
+验证：136 项测试全过（新增"面板不自关"源码断言与"过期 owner 不再阻塞恢复"用例）。E2E：播报中切到 example.com 标签 6 秒——视频全程 ducked 0.15 持续播放（英文未裸播）、TTS 引擎全程出声；切回 YouTube 后 Voice 开关 on/true。版本 1.8.3，`dist/youtube-digest-v1.8.3.zip`（SHA-256：`598176341a7fd9f840f6ea3374e4a4d47e91cbcc083c658fad9b8d112bcba878`）。Release 待用户确认。
+
 ## 当前 GitHub 交付状态
 
 - 目标仓库：`luqiming19820311/youtube-video-learning`（Private，需保持）

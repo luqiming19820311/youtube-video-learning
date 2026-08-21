@@ -435,9 +435,13 @@ function pauseTrackedVideo() {
 
 function handleFrontTabUrl(url) {
   if (!(url || "").startsWith("https://www.youtube.com")) {
-    // Panel is a YouTube-only tool — remove itself from non-YouTube tabs.
+    // Non-YouTube tab in front: pause the tracked video (skipped while
+    // Voice ducks it), but do NOT close the panel. Closing used to destroy
+    // the narration session — the Chinese dub fell silent, the video's
+    // English audio came back at full volume, and the reopened panel showed
+    // Voice as off. Chrome already collapses the panel on tabs where it was
+    // never enabled; staying alive keeps narration and the switch state.
     pauseTrackedVideo();
-    window.close();
     return;
   }
   if (!transcriptTabsController?.isEnabled()) return;

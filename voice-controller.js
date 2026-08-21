@@ -231,6 +231,7 @@
     // automatically while another one is already narrating.
     let ownershipListener = null;
     let ownerRenewTimer = null;
+    let ownershipRecheckTimer = null;
     async function readVoiceOwner() {
       try {
         const stored = await storage.get(VOICE_OWNER_KEY) || {};
@@ -300,6 +301,10 @@
           if (!await canClaimNarration()) {
             updateButton("off");
             onStatus("Voice is narrating in another window.", "info");
+            // A freshly killed panel cannot renounce its ownership — its
+            // heartbeat just stops. Re-check once after the TTL so a panel
+            // reopened within that window still recovers Voice by itself.
+            scheduleOwnershipRecheck();
             return;
           }
           enabled = true;
@@ -313,6 +318,15 @@
         return;
       }
       updateButton(enabled ? (segments.length ? "on" : "loading") : "off");
+    }
+    function scheduleOwnershipRecheck() {
+      clearTimeout(ownershipRecheckTimer);
+      ownershipRecheckTimer = setTimeout(() => {
+        ownershipRecheckTimer = null;
+        if (!enabled && persistedEnabled && !segments.length) {
+          refreshAvailability();
+        }
+      }, VOICE_OWNER_TTL_MS + 500);
     }
     async function ensureTranslations(startIndex, activeGeneration = generation) {
       const missing = segments
@@ -675,6 +689,8 @@
       if (syncTimer !== null) clearIntervalFn(syncTimer);
       syncTimer = null;
       renounceNarration();
+      clearTimeout(ownershipRecheckTimer);
+      ownershipRecheckTimer = null;
       appliedSpeechPause = false;
       clearTimeout(resumeCheckTimer);
       resumeSpeakImmediately = false;
