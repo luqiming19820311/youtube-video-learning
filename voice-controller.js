@@ -49,6 +49,11 @@
     // is spoken right away instead of waiting for its video timestamp, so
     // returning never feels silent.
     let resumeSpeakImmediately = false;
+    // Chrome gives every window its own side-panel instance, each with its
+    // own speechSynthesis. Only the focused window's panel may narrate —
+    // otherwise two panels speak Chinese over each other.
+    let windowFocused = true;
+    let awaitingFocusRestart = false;
     // videoId -> { videoId, index, markedAt, characters, heardChars }: the
     // last segment whose speech BEGAN and how much of it was heard.
     let spokenThroughByVideo = new Map();
@@ -222,6 +227,31 @@
         return;
       }
       updateButton(enabled ? (segments.length ? "on" : "loading") : "off");
+    }
+    // Called by the panel when its window gains/loses OS focus. A blurred
+    // panel must stop narrating immediately (another window's panel may be
+    // about to start — two speechSynthesis instances would overlap), and a
+    // refocused panel resumes from where it left off.
+    function setWindowFocus(focused) {
+      if (focused === windowFocused) return;
+      windowFocused = focused;
+      if (!focused) {
+        if (enabled) {
+          awaitingFocusRestart = true;
+          updateButton("paused");
+          void haltPlayback();
+        }
+        return;
+      }
+      if (awaitingFocusRestart) {
+        awaitingFocusRestart = false;
+        if (enabled && segments.length && isTranscriptEnabled()) {
+          enabled = false;
+          void start();
+        } else {
+          updateButton(enabled ? (segments.length ? "on" : "loading") : "off");
+        }
+      }
     }
     async function ensureTranslations(startIndex, activeGeneration = generation) {
       const missing = segments
@@ -661,7 +691,8 @@
       }
     }
     return {
-      clearTranscript, initialize, refreshAvailability, seekTo, setTranscript, start, stop, toggle,
+      clearTranscript, initialize, refreshAvailability, seekTo, setTranscript,
+      setWindowFocus, start, stop, toggle,
       getState: () => ({
         enabled, generation, currentIndex, segmentCount: segments.length,
         voiceCharsPerSecond: calibratedCps,

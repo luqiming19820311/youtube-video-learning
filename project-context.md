@@ -155,6 +155,16 @@ V1.8.0 发布前全绿：
 - 语音朗读验证：monkeypatch `speechSynthesis.speak` 记录文本；音源状态以 `video.paused/volume` + `speechSynthesis.speaking/paused` 为准。
 - macOS 语音引擎怪癖：长 pause 后 resume 可能静默失效（已自动解锁）；pause/resume 循环可能重播 utterance（已状态去重）。
 
+## 2026-08-21 双中文播报叠加修复（V1.8.1）
+
+用户澄清：所谓"双声"是**两个中文播报叠加**（非视频原声）。根因：Chrome 侧边栏每个窗口一个实例，各自有独立 speechSynthesis——窗口 A 面板播报中，切到窗口 B（其侧边栏也开着且当前页为 YouTube），B 面板按 `ytd_voice_enabled` 偏好恢复播报 → 两窗口面板同时出中文声；且失焦面板的播放状态查询经后台可能路由到聚焦窗口的标签，误判"视频在播"而继续。
+
+修复：**同一时刻仅聚焦窗口的面板可播报**。
+- voice-controller.js 新增 `setWindowFocus(focused)`：失焦 → `haltPlayback()` 立即停止播报（`awaitingFocusRestart` 保持偏好开启，按钮显示 paused/true）；回焦 → 自动重启播报。
+- sidepanel.js `windows.onFocusChanged` 中同时通知 `setWindowFocus(windowId === panelWindowId)`；面板启动时经 `getLastFocused` 初始化焦点状态。
+
+验证：双窗口双面板 E2E——窗口 A 面板播报中 → 创建并聚焦带面板的窗口 B → A 面板 6 秒内全程静音（eng=idle、btn=paused/true），B 面板接管为唯一播报者（因视频暂停而正确等待）；单测覆盖"失焦即停、回焦自恢复"。133 项测试全过。版本 1.8.1，`dist/youtube-digest-v1.8.1.zip`（SHA-256：`d7ae98a1b547ad9c061160e6067b34663430c74ae2d7b6620ffd5788b99255af`）。V1.8.1 Release 待用户确认文案后发布。
+
 ## 当前 GitHub 交付状态
 
 - 目标仓库：`luqiming19820311/youtube-video-learning`（Private，需保持）

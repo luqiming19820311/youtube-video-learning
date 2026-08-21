@@ -1,10 +1,15 @@
 {
   "manifest_version": 3,
   "name": "YouTube Digest",
-  "version": "1.8.0",
+  "version": "1.8.1",
   "minimum_chrome_version": "116",
   "description": "Turn YouTube videos into learning resources with transcripts, bilingual translation, AI overviews, and notes.",
-  "permissions": ["sidePanel", "storage", "tabs", "scripting"],
+  "permissions": [
+    "sidePanel",
+    "storage",
+    "tabs",
+    "scripting"
+  ],
   "host_permissions": [
     "https://www.youtube.com/*",
     "https://api.supadata.ai/*",
@@ -44,8 +49,14 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://www.youtube.com/*"],
-      "js": ["player-captions.js", "voice-playback.js", "content.js"],
+      "matches": [
+        "https://www.youtube.com/*"
+      ],
+      "js": [
+        "player-captions.js",
+        "voice-playback.js",
+        "content.js"
+      ],
       "run_at": "document_idle"
     }
   ],

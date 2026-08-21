@@ -838,6 +838,70 @@ test("a wedged speech engine is cancelled so narration can continue", async () =
   }
 });
 
+test("only the focused window's panel narrates when two panels run", async () => {
+  const button = new FakeButton();
+  const spoken = [];
+  const relayMessages = [];
+  class FakeUtterance {
+    constructor(text) { this.text = text; }
+  }
+  const controller = voiceController.createController({
+    button,
+    storage: {
+      async get() {
+        return { [settings.STORAGE_KEY]: settings.normalize({}) };
+      },
+    },
+    isTranscriptEnabled: () => true,
+    runtime: { async sendMessage() { return { success: true }; } },
+    relay: async (message) => {
+      relayMessages.push(message.action);
+      if (message.action === "getVoicePlaybackState") {
+        return { currentTime: 0, playbackRate: 1, paused: false, pausedByVoice: false };
+      }
+      return { success: true };
+    },
+    speechSynthesis: {
+      getVoices: () => [{ voiceURI: "zh", lang: "zh-CN" }],
+      speak: (utterance) => spoken.push(utterance),
+      cancel() {}, pause() {}, resume() {},
+    },
+    SpeechSynthesisUtteranceCtor: FakeUtterance,
+    setIntervalFn: () => 1,
+    clearIntervalFn() {},
+  });
+  await controller.initialize();
+  controller.setTranscript({
+    videoId: "dual-panel",
+    language: "zh-CN",
+    segments: [
+      { id: "segment-0-0", start: 0, end: 4, text: "窗口A正在播报这一句。" },
+      { id: "segment-1-4000", start: 4, end: 8, text: "回到窗口A后继续这一句。" },
+    ],
+  });
+  await controller.start();
+  await nextTurn();
+  assert.deepEqual(spoken.map((utterance) => utterance.text), ["窗口A正在播报这一句。"]);
+
+  // Window A loses focus (user switched to window B whose own panel may
+  // now narrate): this panel must fall silent at once, not keep speaking.
+  controller.setWindowFocus(false);
+  await nextTurn();
+  await nextTurn();
+  const spokenAtBlur = spoken.length;
+  await new Promise((resolve) => setTimeout(resolve, 120));
+  assert.equal(spoken.length, spokenAtBlur);
+  assert.ok(relayMessages.includes("restoreVoicePlayback"));
+  assert.equal(controller.getState().enabled, true);
+
+  // Window A regains focus: narration resumes by itself.
+  controller.setWindowFocus(true);
+  await nextTurn();
+  await nextTurn();
+  assert.ok(spoken.length > spokenAtBlur);
+  await controller.stop();
+});
+
 test("a sentence that finished naturally is not repeated on return", async () => {
   const button = new FakeButton();
   const spoken = [];
