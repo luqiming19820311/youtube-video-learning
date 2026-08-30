@@ -35,7 +35,7 @@ YouTube Digest 是一个需要自行提供 API Key 的开源项目，通过 GitH
 
 如果你想自己操作：
 
-1. 打开 ([https://github.com/zarazhangrui/youtube-digest](https://github.com/luqiming19820311/youtube-video-learning))。
+1. 打开 https://github.com/luqiming19820311/youtube-video-learning
 2. 点击 **Code**，再选择 **Download ZIP**。
 3. 选择一个长期保留的文件夹，并把项目解压到这里。可选建议是 macOS 或 Linux 上的 `~/Documents/youtube-digest`，或 Windows 上的 `%USERPROFILE%\Documents\youtube-digest`。你也可以使用其他文件夹。
 4. 在 Chrome 地址栏打开 `chrome://extensions`。
