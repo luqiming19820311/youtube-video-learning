@@ -17,7 +17,7 @@ YouTube Digest is a bring-your-own-key project installed locally from GitHub. It
 
 You do not need to understand the code or use the command line. Send this message to your coding agent:
 
-> Download or clone this project into a permanent folder I choose, tell me its exact full path, and use that same folder for Chrome's Load unpacked step. If I need a suggestion during this first installation, offer `~/Documents/youtube-digest` on macOS or Linux, or `%USERPROFILE%\Documents\youtube-digest` on Windows, but do not assume either path. Walk me through installation and setup in simple terms. https://github.com/zarazhangrui/youtube-digest
+> Download or clone this project into a permanent folder I choose, tell me its exact full path, and use that same folder for Chrome's Load unpacked step. If I need a suggestion during this first installation, offer `~/Documents/youtube-digest` on macOS or Linux, or `%USERPROFILE%\Documents\youtube-digest` on Windows, but do not assume either path. Walk me through installation and setup in simple terms. [https://github.com/zarazhangrui/youtube-digest](https://github.com/luqiming19820311/youtube-video-learning)
 
 Your agent should:
 
